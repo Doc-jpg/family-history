@@ -18,6 +18,12 @@ export function ConfidencePill({ c }: { c: Person['confidence'] }) {
   return <span className={`pill ${cls}`}>{c}</span>;
 }
 
+/** Initials in a ring colored by branch; a photo when one is attached (admin view resolves it elsewhere). */
+export function Avatar({ p, size = 'md', src }: { p: Person; size?: 'sm' | 'md' | 'lg'; src?: string | null }) {
+  const initials = p.placeholder ? '?' : (p.givenNames.slice(0, 1) + (p.surname.slice(0, 1) || '')).toUpperCase();
+  return <span className={`avatar ${size}`} style={{ borderColor: branchColor(p.branch), color: p.placeholder ? 'var(--ink-3)' : branchColor(p.branch) }} aria-hidden="true">{src ? <img src={src} alt="" /> : initials}</span>;
+}
+
 export function PersonChip({ ds, p, to = true }: { ds: Dataset; p: Person; to?: boolean }) {
   const inner = (
     <span className="row" style={{ gap: 8 }}>

@@ -147,9 +147,9 @@ function check(name, ok, detail = '') { results.push({ name, ok, detail }); cons
       const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
       await rel.setInputFiles('input[type=file]', [{ name: 'test-photo.png', mimeType: 'image/png', buffer: png }, { name: 'test-letter.txt', mimeType: 'text/plain', buffer: Buffer.from('ACCEPTANCE TEST letter') }]);
       await rel.waitForSelector('text=test-letter.txt');
-      check('relative attached a photo and a document', (await rel.textContent('body')).includes('photo: test-photo.png'));
+      check('relative attached a photo and a document', (await rel.textContent('body')).includes('test-photo.png') && (await rel.textContent('body')).includes('test-letter.txt'));
       await rel.click(`button:has-text("Send to ${ROOT_FIRST}")`);
-      await rel.waitForSelector('text=review inbox');
+      await rel.waitForSelector('text=to review before it becomes part of the record');
       check('relative submitted a contribution', true);
       // center-on-me is offered only when the invitation is tied to a person; this test invite is not, so the tree centers on the root person
       await rel.click('button:has-text("Tree")');

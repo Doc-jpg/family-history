@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { standingOf } from '../model/standing';
+import { FitIcon, HomeIcon } from '../components/Icons';
+import { Avatar } from '../components/PersonBits';
 import * as d3 from 'd3';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/store';
@@ -38,6 +40,7 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
   const [hideSlots, setHideSlots] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [fitTick, setFitTick] = useState(0);
   const [pathEnds, setPathEnds] = useState<string[]>([]);
   const [mode, setMode] = useState<'hourglass' | 'descendants'>('hourglass');
   const rootPerson = (rootId && ds.people.find((p) => p.id === rootId)) || ds.people.find((p) => p.id === ds.settings.rootPersonId)!;
@@ -125,7 +128,7 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
     const k = Math.min(1, (W - 80) / (Math.max(...xs) - Math.min(...xs) + dx), (H - 200) / (Math.max(...ys) - Math.min(...ys) + dy));
     svg.call(zoom.transform, d3.zoomIdentity.translate(W / 2 - cx * k, H / 2 - cy * k + 30).scale(k));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ds, collapsed, branch, hideSlots, query, highlight, mode, root]);
+  }, [ds, collapsed, branch, hideSlots, query, highlight, mode, root, fitTick]);
 
   const sel = selected ? ds.people.find((p) => p.id === selected) : null;
   return (
@@ -153,15 +156,20 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
             <span><i className="sw" style={{ background: 'var(--household)' }} />Household</span>
             <span className="muted">dashed ring = slot · dotted ring = pencil (one voice) · red = under question · dashed line = unverified</span>
           </div>
-          <div className="panel muted" style={{ fontSize: '0.85rem' }}>
+          <div className="panel hint">
             Click a person for details. Shift-click two people to highlight how they connect.{pathEnds.length === 2 && <> <strong>{howRelated(ds, pathEnds[0], pathEnds[1]).label}</strong> <button className="btn small" onClick={() => setPathEnds([])}>clear</button></>}
           </div>
         </div>
-        <svg ref={svgRef}><g ref={gRef} /></svg>
+        <svg ref={svgRef} role="img" aria-label="Family tree"><g ref={gRef} /></svg>
+        <div className="viz-fab">
+          <button className="btn" title="Fit the whole tree on screen" aria-label="Fit to screen" onClick={() => setFitTick((t) => t + 1)}><FitIcon /></button>
+          {(mode !== 'hourglass' || collapsed.size > 0 || selected) && <button className="btn" title={`Back to ${rootPerson.givenNames.split(' ')[0]}`} aria-label="Back to the starting person" onClick={() => { setMode('hourglass'); setCollapsed(new Set()); setSelected(null); setFitTick((t) => t + 1); }}><HomeIcon /></button>}
+        </div>
         {sel && (
           <aside className="drawer">
             <button className="btn small close" onClick={() => setSelected(null)}>Close</button>
-            <h2 style={{ color: branchColor(sel.branch) }}>{displayName(sel)}</h2>
+            <Avatar p={sel} size="lg" />
+            <h2>{displayName(sel)}</h2>
             <p className="row"><ConfidencePill c={sel.confidence} /> <span className="pill">{sel.branch}</span> <span className="pill">{sel.living === 'yes' ? 'living' : sel.living === 'no' ? 'deceased' : 'living status unknown'}</span></p>
             {sel.placeholder ? (
               <p className="muted">This is a slot waiting on facts. Nothing is recorded or assumed about this person yet.</p>

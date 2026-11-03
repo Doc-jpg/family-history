@@ -10,6 +10,8 @@ import Admin from './views/Admin';
 import InviteView from './views/InviteView';
 import RelationView from './views/RelationView';
 import SignIn from './views/SignIn';
+import PeopleSearch from './components/PeopleSearch';
+import { AdminIcon, LinkIcon, MapIcon, TimeIcon, TreeIcon } from './components/Icons';
 
 export function Mark({ color = 'currentColor' }: { color?: string }) {
   return (
@@ -39,27 +41,39 @@ export default function App() {
   if (mode === 'cloud' && !isInvite && !ready) return <div className="page empty">Loading…</div>;
   return (
     <div className="app">
+      <a className="skip" href="#main">Skip to content</a>
       <header className="topbar">
         <NavLink to="/" className="brand">
           <Mark color="var(--accent)" /> {ds.settings.familyName === 'Family' || isInvite ? 'Family History' : `${ds.settings.familyName} Family History`}
         </NavLink>
-        {!isInvite && (
-          <nav className="nav">
-            <NavLink to="/tree">Tree</NavLink>
-            <NavLink to="/map">Map</NavLink>
-            <NavLink to="/timeline">Timeline</NavLink>
-            <NavLink to="/related">Related</NavLink>
-            <NavLink to="/admin">Admin</NavLink>
+        {!isInvite && !gated && (
+          <nav className="nav" aria-label="Main">
+            <NavLink to="/tree"><TreeIcon />Tree</NavLink>
+            <NavLink to="/map"><MapIcon />Map</NavLink>
+            <NavLink to="/timeline"><TimeIcon />Timeline</NavLink>
+            <NavLink to="/related"><LinkIcon />Related</NavLink>
+            <NavLink to="/admin"><AdminIcon />Admin</NavLink>
           </nav>
         )}
         <span className="spacer" />
+        {!isInvite && !gated && <PeopleSearch />}
         {saveError && <span className="pill dot bad" title={saveError}>Not saved</span>}
         <span className={`pill dot ${mode === 'cloud' ? 'ok' : 'warn'}`} title={mode === 'cloud' ? 'Saved to the family database' : 'Saved only in this browser until the cloud database is connected'}>
           {mode === 'cloud' ? 'Cloud' : 'Local draft'}
         </span>
         {mode === 'cloud' && auth.status === 'signed-in' && !isInvite && <button className="btn small" onClick={() => backend.signOut?.()} title={auth.email}>Sign out</button>}
       </header>
+      {!isInvite && !gated && (
+        <nav className="tabbar" aria-label="Main (phone)">
+          <NavLink to="/tree"><TreeIcon />Tree</NavLink>
+          <NavLink to="/map"><MapIcon />Map</NavLink>
+          <NavLink to="/timeline"><TimeIcon />Timeline</NavLink>
+          <NavLink to="/related"><LinkIcon />Related</NavLink>
+          <NavLink to="/admin"><AdminIcon />Admin</NavLink>
+        </nav>
+      )}
       {gated ? <SignIn /> : (
+      <div id="main" className="view-enter" key={loc.pathname.split('/').slice(0, 2).join('/')} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/tree" element={<TreeView />} />
@@ -71,6 +85,7 @@ export default function App() {
         <Route path="/invite/:token" element={<InviteView />} />
         <Route path="*" element={<div className="page empty">Nothing here.</div>} />
       </Routes>
+      </div>
       )}
       {!isInvite && (
         <footer className="footer">

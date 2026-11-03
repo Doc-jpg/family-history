@@ -37,9 +37,26 @@ export default function Inbox({ ds, update }: Props) {
                   <span>about {c.subject.type}: {c.subject.id && c.subject.type === 'person' ? <Link to={`/person/${c.subject.id}`}>{c.subject.label}</Link> : c.subject.label}</span></div>
               </div>
             </div>
-            <p style={{ marginTop: 10 }}><strong>Proposes:</strong> {c.proposal}</p>
-            {c.fields && Object.keys(c.fields).length > 0 && <dl className="kv">{Object.entries(c.fields).map(([k, v]) => <><dt key={k + 'k'}>{k}</dt><dd key={k + 'v'}>{v}</dd></>)}</dl>}
-            {c.reasoning && <p><strong>Why they believe it:</strong> {c.reasoning}</p>}
+            {(() => {
+              const subject = c.subject.type === 'person' && c.subject.id ? ds.people.find((p) => p.id === c.subject.id) : undefined;
+              const fields = c.fields ?? {};
+              const hasFields = Object.keys(fields).length > 0;
+              const currentOf = (k: string): string => {
+                if (!subject) return '';
+                if (k === 'givenNames') return subject.givenNames;
+                if (k === 'surname') return subject.surname;
+                if (k === 'maidenName') return subject.maidenName ?? '';
+                if (k === 'birth' || k === 'death') { const e = ds.events.find((x) => x.type === k && x.personIds.includes(subject.id)); return e ? `${e.date?.year ?? '?'}${e.placeId ? `, ${ds.places.find((pl) => pl.id === e.placeId)?.name ?? ''}` : ''}` : ''; }
+                return '';
+              };
+              return (
+                <div className="compare">
+                  <div><h4>Now on record</h4>{subject ? (hasFields ? Object.keys(fields).map((k) => <div key={k}><small className="muted">{k}</small><br />{currentOf(k) || <span className="muted">nothing</span>}</div>) : <div>{subject.bio ? subject.bio.slice(0, 180) + (subject.bio.length > 180 ? '…' : '') : <span className="muted">No story yet.</span>}</div>) : <span className="muted">Not about one person.</span>}</div>
+                  <div><h4>They propose</h4>{hasFields && Object.entries(fields).map(([k, v]) => <div key={k}><small className="muted">{k}</small><br /><span className={currentOf(k) && currentOf(k) !== v ? 'changed' : ''}>{v}</span></div>)}<div style={{ marginTop: hasFields ? 6 : 0 }}>{c.proposal}</div></div>
+                  <div><h4>Their evidence</h4>{c.reasoning ? <div>{c.reasoning}</div> : <span className="muted">No reason given.</span>}{c.attachmentMediaIds.length > 0 && <div className="muted" style={{ marginTop: 4 }}>{c.attachmentMediaIds.length} attachment{c.attachmentMediaIds.length > 1 ? 's' : ''} below.</div>}</div>
+                </div>
+              );
+            })()}
             {c.attachmentMediaIds.length > 0 && <div className="stack" style={{ marginTop: 8 }}><strong>Attachments ({c.attachmentMediaIds.length})</strong>{c.attachmentMediaIds.map((id) => { const m = ds.media.find((x) => x.id === id); return m ? <MediaItem key={id} m={m} /> : <span key={id} className="muted">{id}</span>; })}</div>}
             {c.reviewNotes && <p className="muted"><em>Review note: {c.reviewNotes}</em></p>}
             <label className="field">Note to keep with this decision<input value={notes[c.id] ?? ''} onChange={(e) => setNotes({ ...notes, [c.id]: e.target.value })} placeholder="optional" /></label>
