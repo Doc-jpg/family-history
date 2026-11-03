@@ -100,7 +100,7 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
     node.append('circle').attr('class', 'ring').attr('r', 22)
       .attr('stroke', (d) => branchColor(d.data.p.branch))
       .attr('opacity', (d) => (matches && !displayName(d.data.p).toLowerCase().includes(matches) ? 0.25 : 1))
-      .attr('fill', (d) => (highlight.has(d.data.p.id) ? 'color-mix(in srgb, var(--accent) 45%, var(--viz-surface))' : 'var(--viz-surface)'));
+      .attr('fill', (d) => (highlight.has(d.data.p.id) ? 'color-mix(in srgb, var(--blue) 30%, var(--viz-surface))' : 'var(--viz-surface)'));
     node.append('text').attr('text-anchor', 'middle').attr('dy', 5).attr('font-size', 16)
       .text((d) => (d.data.p.placeholder ? '?' : d.data.p.givenNames.slice(0, 1) + (d.data.p.surname.slice(0, 1) || '')));
     node.filter((d) => d.data.p.living === 'no').append('text').attr('x', 18).attr('y', -14).attr('font-size', 11).attr('fill', 'var(--viz-ink-3)').text('✝');

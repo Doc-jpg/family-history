@@ -152,7 +152,7 @@ function SettingsTab({ ds, update }: { ds: Dataset; update: (fn: (d: Dataset) =>
       <h3>Appearance</h3>
       <div className="form-grid">
         <label className="field">Family name on the masthead<input value={s.familyName} onChange={(e) => set({ familyName: e.target.value })} /></label>
-        <label className="field">Theme<select value={s.theme} onChange={(e) => set({ theme: e.target.value as Dataset['settings']['theme'] })}><option value="parchment">Field (default)</option><option value="linen">Brighter</option><option value="ink">Night (dark)</option></select></label>
+        <label className="field">Theme<select value={s.theme} onChange={(e) => set({ theme: e.target.value as Dataset['settings']['theme'] })}><option value="parchment">Light (default)</option><option value="linen">Light gray page</option><option value="ink">Dark</option></select></label>
         {(['paternal', 'maternal', 'self', 'household', 'unknown'] as const).map((k) => <label key={k} className="field">{k} color<input type="color" value={s.colors[k]} onChange={(e) => set({ colors: { ...s.colors, [k]: e.target.value } })} /></label>)}
       </div>
     </div>
