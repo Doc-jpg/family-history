@@ -86,8 +86,9 @@ export default function InviteView() {
         const pr = await api.probe(token, deviceId);
         if (cancelled) return;
         setProbe(pr);
-        // A device that is not the contributor device opens view-only straight away when the link allows it.
-        if (pr.state === 'elsewhere' && (pr.invitation.forwarded ?? 'view') === 'view') await open('');
+        // A device that is not the contributor device opens view-only straight away when the link allows it,
+        // and a look-only (viewer) link never asks for a code at all.
+        if ('invitation' in pr && (pr.invitation.forwarded ?? 'view') === 'view' && (pr.state === 'elsewhere' || pr.invitation.role === 'viewer')) await open('');
       }
     })();
     return () => { cancelled = true; };

@@ -168,13 +168,25 @@ export function howRelated(ds: Dataset, aId: string, bId: string, viaPartner = t
   if (!viaPartner) return { label: 'no known connection yet', path: [], commonAncestorIds: [] };
   for (const { person } of partnersOf(ds, aId)) {
     const via = howRelated(ds, person.id, bId, false);
-    if (via.label !== 'unknown' && via.path.length) return { label: `${regender(via.label, a.sex)}-in-law (through ${displayName(person)})`, path: [aId, ...via.path], commonAncestorIds: via.commonAncestorIds };
+    if (via.label === 'unknown' || !via.path.length) continue;
+    // Married to b's parent or grandparent, without being one: a step-parent, not an in-law.
+    if (ASCENDANT.test(via.label)) return { label: stepLabel(regender(via.label, a.sex)), path: [aId, ...via.path], commonAncestorIds: via.commonAncestorIds };
+    return { label: `${regender(via.label, a.sex)}-in-law (through ${displayName(person)})`, path: [aId, ...via.path], commonAncestorIds: via.commonAncestorIds };
   }
   for (const { person } of partnersOf(ds, bId)) {
     const via = howRelated(ds, aId, person.id, false);
-    if (via.label !== 'unknown' && via.path.length && !via.label.includes('in-law')) return { label: `${via.label}-in-law (through ${displayName(person)})`, path: [...via.path, bId], commonAncestorIds: via.commonAncestorIds };
+    if (via.label === 'unknown' || !via.path.length || via.label.includes('in-law')) continue;
+    if (DESCENDANT.test(via.label)) return { label: stepLabel(via.label), path: [...via.path, bId], commonAncestorIds: via.commonAncestorIds };
+    return { label: `${via.label}-in-law (through ${displayName(person)})`, path: [...via.path, bId], commonAncestorIds: via.commonAncestorIds };
   }
   return { label: 'no known connection yet', path: [], commonAncestorIds: [] };
+}
+
+const ASCENDANT = /^(great-)*(grand)?(mother|father|parent)$/;
+const DESCENDANT = /^(great-)*(grand)?(son|daughter|child)$/;
+/** "mother" becomes "stepmother"; "grandfather" becomes "step-grandfather". */
+function stepLabel(label: string): string {
+  return label.includes('grand') ? `step-${label}` : `step${label}`;
 }
 
 /** The partner's role, restated for the in-law's own sex: Deren is Gina's son, so his wife is her daughter-in-law. */
