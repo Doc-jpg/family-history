@@ -46,7 +46,7 @@ describe('pencil and pen', () => {
     ds = attest(ds, { personId: id, by: 'inv-c', byName: 'C', stance: 'dispute', note: 'I think 1991' });
     const d = standingOf(ds, id);
     expect(d.standing).toBe('documented');
-    expect(d.summary).toContain('flagged for research');
+    expect(d.summary).toContain('marked for research');
   });
   it('asks a relative only about pencil or disputed people they have not weighed in on', () => {
     let { ds, id } = withPerson();

@@ -47,7 +47,7 @@ export function standingOf(ds: Dataset, personId: string): StandingDetail {
   else standing = 'unattested';
   const summary =
     standing === 'disputed' ? `In pencil: ${names(disputes)} ${disputes.length === 1 ? 'thinks' : 'think'} something here is wrong${confirms.length ? `; ${names(confirms)} ${confirms.length === 1 ? 'has' : 'have'} confirmed it` : ''}.`
-    : standing === 'documented' ? `Backed by a record${confirms.length ? `; also confirmed by ${names(confirms)}` : ''}${disputes.length ? `. ${names(disputes)} raised a question, flagged for research` : ''}.`
+    : standing === 'documented' ? `A cited source (an obituary, a certificate, an index) supports this${confirms.length ? `; also confirmed by ${names(confirms)}` : ''}${disputes.length ? `. ${names(disputes)} raised a question, marked for research` : ''}.`
     : standing === 'pen' ? `In pen: confirmed by ${names(confirms)}.`
     : standing === 'pencil' ? `In pencil: told by ${names(confirms)} and not yet confirmed by anyone else.`
     : 'Not yet confirmed by any relative.';

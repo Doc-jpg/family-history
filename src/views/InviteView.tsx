@@ -9,6 +9,7 @@ import type { AccessRequestInput, ContributionInput, InviteApi, UploadedFile } f
 import TreeView from './TreeView';
 import { ConfidencePill, PersonRow, lifespan } from '../components/PersonBits';
 import { gapsFor, relativesOf, type Gap } from '../model/perspective';
+import { PenIcon } from '../components/Icons';
 import MediaItem from '../components/MediaItem';
 import StandingCard, { StandingPill } from '../components/StandingCard';
 import Constellation from '../components/Constellation';
@@ -25,7 +26,7 @@ const SESSION = 'family-history:invite-session';
 
 const KINDS: { kind: ContributionKind; label: string; prompt: string; fields?: { key: string; label: string }[] }[] = [
   { kind: 'memory', label: 'Share a memory or story', prompt: 'What do you remember about this person? Anything at all: a saying, a habit, a holiday, a job, a house.' },
-  { kind: 'correction', label: 'Correct a name, date or place', prompt: 'What should it say instead?', fields: [{ key: 'givenNames', label: 'Given names (if changing)' }, { key: 'surname', label: 'Surname (if changing)' }, { key: 'maidenName', label: 'Maiden name (if known)' }, { key: 'birth', label: 'Birth date and place' }, { key: 'death', label: 'Death date and place' }] },
+  { kind: 'correction', label: 'Fix a name, date or place', prompt: 'What is there now is filled in. Change what is wrong, add what is missing, leave the rest.', fields: [{ key: 'givenNames', label: 'First and middle names' }, { key: 'surname', label: 'Last name' }, { key: 'maidenName', label: 'Maiden name' }, { key: 'birth', label: 'Born (date and place)' }, { key: 'death', label: 'Died (date and place)' }] },
   { kind: 'missing-person', label: 'Add someone who is missing', prompt: 'Who is missing, and how were they related? Siblings, a spouse, children, a parent.', fields: [{ key: 'name', label: 'Their full name' }, { key: 'relation', label: 'How they are related to this person' }, { key: 'dates', label: 'Any dates or places you know' }] },
   { kind: 'relationship', label: 'Fix a relationship', prompt: 'Which relationship is wrong or missing, and what is right?' },
   { kind: 'identify-photo', label: 'Identify someone in a photo', prompt: 'Which photo, and who do you recognize?' },
@@ -318,7 +319,16 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
   const relation = rawRelation.replace(/ \(through (.+)\)$/, (_m, name: string) => { const via = scoped.people.find((x) => displayName(x) === name); return ` · through ${via ? via.givenNames.split(' ')[0] : name}`; });
   const [text, setText] = useState('');
   const [why, setWhy] = useState('');
-  const [fields, setFields] = useState<Record<string, string>>({});
+  // The fix form starts with what the record says now, so a relative edits instead of retyping.
+  const initialFields = useMemo<Record<string, string>>(() => {
+    if (!person) return {} as Record<string, string>;
+    const ev = (t: string) => { const e = scoped.events.find((x) => x.type === t && x.personIds.includes(person.id)); return e ? [formatDate(e.date), e.placeId ? scoped.places.find((pl) => pl.id === e.placeId)?.name : ''].filter(Boolean).join(', ') : ''; };
+    return { givenNames: person.givenNames, surname: person.surname, maidenName: person.maidenName ?? '', birth: ev('birth'), death: ev('death') };
+  }, [person, scoped]);
+  const [fields, setFields] = useState<Record<string, string>>(() => (startKind === 'correction' ? initialFields : {}));
+  const changedFields = Object.fromEntries(Object.entries(fields).filter(([k, v]) => v.trim() && v.trim() !== (initialFields[k] ?? '').trim()));
+  const formRef = useRef<HTMLDivElement>(null);
+  const pick = (k: ContributionKind) => { setKind(k); setFields(k === 'correction' ? initialFields : {}); setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
   const [sent, setSent] = useState(false);
   const [files, setFiles] = useState<(UploadedFile & { previewUrl?: string })[]>([]);
   const [rec, setRec] = useState<{ stop: () => Promise<Blob> } | null>(null);
@@ -366,7 +376,7 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
       kind: kind!,
       subject: person ? { type: 'person', id: person.id, label: displayName(person) } : { type: 'branch', label: inv.scope.branches.join(' & ') || 'family' },
       proposal: text.trim(),
-      fields: Object.fromEntries(Object.entries(fields).filter(([, v]) => v.trim())),
+      fields: kind === 'correction' ? changedFields : Object.fromEntries(Object.entries(fields).filter(([, v]) => v.trim())),
       reasoning: why.trim() || undefined,
       attachmentMediaIds: files.map((f) => f.id),
     };
@@ -390,6 +400,13 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
         <div className="card">
           <h2>{displayName(person)}</h2>
           {relation && <p className="rel-label" style={{ marginTop: -6 }}>{relation === 'you' ? (whose === 'your' ? 'This is you.' : `This is ${inv.recipientName.split(' ')[0]}.`) : `${whose === 'your' ? 'Your' : whose} ${relation}.`}</p>}
+          {canContribute && (
+            <div className="row quick" style={{ margin: '10px 0 14px' }}>
+              <button className={`btn ${kind === 'correction' ? 'primary' : ''}`} onClick={() => pick('correction')}><PenIcon />Fix the name or dates</button>
+              <button className={`btn ${kind === 'memory' ? 'primary' : ''}`} onClick={() => pick('memory')}>Share a memory</button>
+              <button className={`btn ${kind === 'upload' ? 'primary' : ''}`} onClick={() => pick('upload')}>Add a photo</button>
+            </div>
+          )}
           <p className="row"><ConfidencePill c={person.confidence} /><span className="pill">{lifespan(scoped, person) || 'no dates recorded'}</span></p>
           <p>{person.bio ?? <span className="muted">No story written yet. Do you know one?</span>}</p>
           <dl className="kv">
@@ -405,13 +422,20 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
       {sent && <div className="banner ok" role="status">Sent. It goes to {ownerName(scoped)} to review before it becomes part of the record. Add more whenever you like.</div>}
       {!canContribute && <div className="card"><h3>Know something about {person ? person.givenNames.split(' ')[0] : 'the family'}?</h3><p className="muted">A memory, a correction, a photo, where they lived. Adding needs a link of your own, personal to you, and it takes {ownerName(scoped)} a minute to send one.</p><button className="btn primary" onClick={onRequest}>Ask for my own link</button></div>}
       {canContribute && !kind && (
-        <div className="card">
-          <h3>{person ? `Add to ${person.givenNames.split(' ')[0]}'s story` : 'Add a general note'}</h3>
-          <div className="tiles">{KINDS.filter((k) => (person ? k.kind !== 'branch-note' : ['branch-note', 'lead', 'context', 'identify-photo', 'missing-person', 'oral-history'].includes(k.kind))).map((k) => <button key={k.kind + k.label} className="tile" onClick={() => setKind(k.kind)}><strong>{k.label}</strong><span>{k.prompt.length > 70 ? k.prompt.slice(0, 68).replace(/\s\S*$/, '') + '…' : k.prompt}</span></button>)}</div>
-        </div>
+        person ? (
+          <details className="disclosure">
+            <summary>More ways to add to {person.givenNames.split(' ')[0]}'s story <span className="muted">someone missing, a place, a story told out loud</span></summary>
+            <div className="tiles" style={{ marginTop: 10 }}>{KINDS.filter((k) => !['branch-note', 'correction', 'memory', 'upload'].includes(k.kind)).map((k) => <button key={k.kind + k.label} className="tile" onClick={() => pick(k.kind)}><strong>{k.label}</strong><span>{k.prompt.length > 70 ? k.prompt.slice(0, 68).replace(/\s\S*$/, '') + '…' : k.prompt}</span></button>)}</div>
+          </details>
+        ) : (
+          <div className="card">
+            <h3>Add a general note</h3>
+            <div className="tiles">{KINDS.filter((k) => ['branch-note', 'lead', 'context', 'identify-photo', 'missing-person', 'oral-history'].includes(k.kind)).map((k) => <button key={k.kind + k.label} className="tile" onClick={() => pick(k.kind)}><strong>{k.label}</strong><span>{k.prompt.length > 70 ? k.prompt.slice(0, 68).replace(/\s\S*$/, '') + '…' : k.prompt}</span></button>)}</div>
+          </div>
+        )
       )}
       {canContribute && def && (
-        <div className="card">
+        <div className="card" ref={formRef}>
           <h3>{def.label}</h3>
           <p className="muted">{def.prompt}</p>
           {def.fields && <div className="form-grid">{def.fields.map((f) => <label key={f.key} className="field">{f.label}<input value={fields[f.key] ?? ''} onChange={(e) => setFields({ ...fields, [f.key]: e.target.value })} /></label>)}</div>}
@@ -427,7 +451,7 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
             {files.length > 0 && <ul style={{ margin: '8px 0 0', paddingLeft: 0, listStyle: 'none' }} className="stack">{files.map((f) => <li key={f.id} className="row" style={{ justifyContent: 'space-between' }}><span className="row" style={{ gap: 8 }}>{f.previewUrl ? <img src={f.previewUrl} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} /> : <span className="pill">{f.kind}</span>}<span>{f.name} <small className="muted">({Math.max(1, Math.round(f.size / 1024))} KB)</small></span></span><button className="btn small ghost" type="button" onClick={() => setFiles((x) => x.filter((y) => y.id !== f.id))}>Remove</button></li>)}</ul>}
           </div>
           <p className="muted" style={{ marginTop: 8 }}>Your name is attached as "{inv.recipientName}" so {ownerName(scoped)} can follow up. Only the admin sees submissions until they are approved. Files you attach stay private to the family archive.</p>
-          <div className="row"><button className="btn primary" onClick={submit} disabled={sending || (!text.trim() && !Object.values(fields).some((v) => v.trim()) && files.length === 0)}>{sending ? 'Sending…' : `Send to ${ownerName(scoped)}`}</button><button className="btn" onClick={() => setKind(null)}>Back</button></div>
+          <div className="row"><button className="btn primary" onClick={submit} disabled={sending || (!text.trim() && !Object.keys(kind === 'correction' ? changedFields : Object.fromEntries(Object.entries(fields).filter(([, v]) => v.trim()))).length && files.length === 0)}>{sending ? 'Sending…' : `Send to ${ownerName(scoped)}`}</button><button className="btn" onClick={() => setKind(null)}>Back</button></div>
         </div>
       )}
     </div>
