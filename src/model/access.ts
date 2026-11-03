@@ -9,7 +9,16 @@ import { ancestorDistances, childrenOf, newId, parentsOf, partnersOf } from './g
 // - Private-privacy people are never visible to invitees.
 
 export function visiblePeople(ds: Dataset, scope: AccessScope): Person[] {
-  return ds.people.filter((p) => isVisible(ds, p, scope));
+  const base = ds.people.filter((p) => isVisible(ds, p, scope));
+  const ids = new Set(base.map((p) => p.id));
+  // A husband or wife who married into a visible line has no branch of their own ('unknown');
+  // they are still part of the family the viewer sees.
+  const spouses = ds.relationships
+    .filter((r) => r.type === 'partner' && (ids.has(r.fromId) !== ids.has(r.toId)))
+    .map((r) => (ids.has(r.fromId) ? r.toId : r.fromId))
+    .map((id) => ds.people.find((p) => p.id === id))
+    .filter((p): p is Person => !!p && !p.placeholder && p.privacy !== 'private' && p.branch === 'unknown' && !ids.has(p.id));
+  return [...base, ...spouses];
 }
 
 export function isVisible(ds: Dataset, p: Person, scope: AccessScope): boolean {

@@ -126,7 +126,7 @@ export function howRelated(ds: Dataset, aId: string, bId: string, viaPartner = t
   if (!a || !b) return { label: 'unknown', path: [], commonAncestorIds: [] };
 
   const partner = partnersOf(ds, aId).find((x) => x.person.id === bId);
-  if (partner) return { label: partner.rel.subtype === 'marriage' ? 'spouse' : 'partner', path: [aId, bId], commonAncestorIds: [] };
+  if (partner) return { label: partner.rel.subtype === 'marriage' ? (a.sex === 'M' ? 'husband' : a.sex === 'F' ? 'wife' : 'spouse') : 'partner', path: [aId, bId], commonAncestorIds: [] };
 
   const da = ancestorDistances(ds, aId);
   const db = ancestorDistances(ds, bId);

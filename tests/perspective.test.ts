@@ -53,7 +53,7 @@ describe('perspective on a synthetic family', () => {
     ];
     const groups = relativesOf(ds, ds.people[0].id);
     expect(groups.map((g) => g.title)).toEqual(['Your parents and grandparents', 'Your partner, children and grandchildren']);
-    expect(groups[1].entries.map((e) => e.label).sort()).toEqual(['daughter', 'spouse']);
+    expect(groups[1].entries.map((e) => e.label).sort()).toEqual(['daughter', 'wife']);
     const gaps = gapsFor(ds, ds.people[0].id);
     expect(gaps.some((g) => g.question === "Who was Dad's other parent?" || g.question === 'Who was your other parent?')).toBe(true);
   });

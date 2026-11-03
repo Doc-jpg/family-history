@@ -14,7 +14,7 @@ const GROUP_ORDER = ['Your parents and grandparents', 'Your partner, children an
 function groupFor(label: string): (typeof GROUP_ORDER)[number] {
   if (/in-law/.test(label)) return 'Related by marriage';
   if (/^(mother|father|parent|.*grand(mother|father|parent))$/.test(label)) return 'Your parents and grandparents';
-  if (/^(spouse|partner|son|daughter|child|.*grand(son|daughter|child))$/.test(label)) return 'Your partner, children and grandchildren';
+  if (/^(husband|wife|spouse|partner|son|daughter|child|.*grand(son|daughter|child))$/.test(label)) return 'Your partner, children and grandchildren';
   if (/(sister|brother|sibling|niece|nephew)/.test(label)) return 'Your brothers and sisters, nieces and nephews';
   if (/(aunt|uncle|cousin)/.test(label)) return 'Your aunts, uncles and cousins';
   return 'Elsewhere in the family';
@@ -26,16 +26,29 @@ export function relativesOf(ds: Dataset, meId: string): RelativeGroup[] {
   if (!me) return [];
   const up = ancestorDistances(ds, meId);
   const entries: RelativeEntry[] = [];
+  const unplaced: Person[] = [];
   for (const p of ds.people) {
     if (p.id === meId || p.placeholder) continue;
     const r = howRelated(ds, p.id, meId);
     if (r.label === 'unknown') continue;
+    if (r.label === 'no known connection yet') { unplaced.push(p); continue; }
     const dist = r.path.length ? r.path.length - 1 : 99;
-    entries.push({ person: p, label: r.label === 'no known connection yet' ? 'connection not recorded yet' : r.label, distance: up.get(p.id) ?? dist });
+    entries.push({ person: p, label: r.label, distance: up.get(p.id) ?? dist });
+  }
+  // Two hops out by marriage (a sister-in-law's brother, a nephew's wife's parents): say whose
+  // relative they are rather than "not recorded".
+  const bridges = entries.filter((e) => /in-law|husband|wife|spouse|partner/.test(e.label)).map((e) => e.person);
+  for (const p of unplaced) {
+    let label = 'connection not recorded yet';
+    for (const b of bridges) {
+      const r = howRelated(ds, p.id, b.id, false);
+      if (r.label !== 'unknown' && r.path.length) { label = `${b.givenNames.split(' ')[0]}'s ${r.label}`; break; }
+    }
+    entries.push({ person: p, label, distance: 99 });
   }
   const groups = new Map<string, RelativeEntry[]>();
   for (const e of entries) {
-    const g = e.label === 'connection not recorded yet' ? 'Elsewhere in the family' : groupFor(e.label);
+    const g = e.label === 'connection not recorded yet' || /^[^ ]+'s /.test(e.label) ? 'Elsewhere in the family' : groupFor(e.label);
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g)!.push(e);
   }
@@ -92,7 +105,7 @@ export function gapsFor(ds: Dataset, meId: string, limit = 24): Gap[] {
   for (const p of ds.people) {
     if (p.placeholder || mineSet.has(p.id)) continue;
     const r = howRelated(ds, p.id, meId);
-    if (!r.path.length || r.label.includes('in-law') || r.label === 'spouse' || r.label === 'partner') continue;
+    if (!r.path.length || r.label.includes('in-law') || r.label === 'spouse' || r.label === 'husband' || r.label === 'wife' || r.label === 'partner') continue;
     const steps = r.path.length - 1;
     if (steps > 3) continue;
     const base = 30 + steps * 10;

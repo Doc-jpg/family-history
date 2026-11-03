@@ -55,7 +55,7 @@ describe('relationships', () => {
     expect(howRelated(ds, 't-uncle', DEREN_ID).label).toBe('uncle');
     expect(howRelated(ds, 't-cousin', DEREN_ID).label).toBe('first cousin');
     expect(howRelated(ds, 't-cousin', 't-child').label).toBe('first cousin once removed');
-    expect(howRelated(ds, 't-spouse', DEREN_ID).label).toBe('spouse');
+    expect(howRelated(ds, 't-spouse', DEREN_ID).label).toBe('wife');
     expect(howRelated(ds, 't-spouse', 't-f').label).toContain('in-law');
   });
   it('returns the connecting path through the common ancestor', () => {
