@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Dataset, Person } from '../model/types';
 import { birthYear, deathYear, displayName } from '../model/graph';
@@ -33,4 +34,18 @@ export function PersonChip({ ds, p, to = true }: { ds: Dataset; p: Person; to?: 
     </span>
   );
   return to ? <Link to={`/person/${p.id}`} style={{ textDecoration: 'none' }}>{inner}</Link> : inner;
+}
+
+/** A list row for a person: avatar, name and years, an optional relation line, a slot on the right. */
+export function PersonRow({ ds, p, relation, right, onClick }: { ds: Dataset; p: Person; relation?: string; right?: ReactNode; onClick?: () => void }) {
+  return (
+    <button type="button" className="person-row" onClick={onClick}>
+      <Avatar p={p} size="sm" />
+      <span className="person-row-main">
+        <span className="person-row-name">{displayName(p)}</span>
+        <span className="person-row-sub">{[lifespan(ds, p), relation].filter(Boolean).join(' · ')}</span>
+      </span>
+      {right && <span className="person-row-right">{right}</span>}
+    </button>
+  );
 }

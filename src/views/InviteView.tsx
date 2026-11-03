@@ -7,7 +7,7 @@ import type { ContributionKind, Dataset, Invitation, Media, Person } from '../mo
 import { ACCEPT, MAX_FILE_BYTES, kindOf, startRecording } from '../store/media';
 import type { AccessRequestInput, ContributionInput, InviteApi, UploadedFile } from '../model/invite-api';
 import TreeView from './TreeView';
-import { ConfidencePill, PersonChip, lifespan } from '../components/PersonBits';
+import { ConfidencePill, PersonRow, lifespan } from '../components/PersonBits';
 import { gapsFor, relativesOf, type Gap } from '../model/perspective';
 import MediaItem from '../components/MediaItem';
 import StandingCard, { StandingPill } from '../components/StandingCard';
@@ -172,7 +172,12 @@ export default function InviteView() {
     setShowRequest(true);
   };
   const whose = me ? (isMe ? 'your' : `${me.givenNames.split(' ')[0]}'s`) : '';
-  const relLabel = (label: string) => (label.startsWith('connection') ? label : `${whose} ${label}`);
+  const relLabel = (label: string) => {
+    if (label.startsWith('connection') || label.startsWith('no known')) return label;
+    const m = label.match(/^(.*) \(through (.+)\)$/);
+    if (m) { const via = scoped.people.find((x) => displayName(x) === m[2]); return `${whose} ${m[1]} · through ${via ? via.givenNames.split(' ')[0] : m[2]}`; }
+    return `${whose} ${label}`;
+  };
   const groupTitle = (t: string) => (isMe ? t : t.replace(/^Your /, `${whose} `));
   const groups = me ? relativesOf(scoped, me.id) : [];
   const gaps: Gap[] = me ? gapsFor(scoped, me.id) : [];
@@ -251,19 +256,19 @@ export default function InviteView() {
             <>
               <div className="card" key="me">
                 <h3>{isMe ? 'You' : me.givenNames.split(' ')[0]}</h3>
-                <div className="stack"><button className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(me.id)}><PersonChip ds={scoped} p={me} to={false} /></button></div>
+                <div className="rows"><PersonRow ds={scoped} p={me} right={<StandingPill ds={scoped} personId={me.id} />} onClick={() => setPersonId(me.id)} /></div>
               </div>
               {groups.map((g) => (
                 <div className="card" key={g.title}>
                   <h3>{groupTitle(g.title)}</h3>
-                  <div className="stack">{g.entries.map((e) => <button key={e.person.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(e.person.id)}><PersonChip ds={scoped} p={e.person} to={false} /> <StandingPill ds={scoped} personId={e.person.id} /><span className="rel-label" style={{ display: 'block', fontWeight: 400 }}>{relLabel(e.label)}</span></button>)}</div>
+                  <div className="rows">{g.entries.map((e) => <PersonRow key={e.person.id} ds={scoped} p={e.person} relation={relLabel(e.label)} right={<StandingPill ds={scoped} personId={e.person.id} />} onClick={() => setPersonId(e.person.id)} />)}</div>
                 </div>
               ))}
             </>
           ) : gens.map((g) => (
             <div className="card" key={g}>
               <h3>{g === 0 ? `${owner}'s generation` : g > 0 ? `${g === 1 ? 'Parents' : g === 2 ? 'Grandparents' : g === 3 ? 'Great-grandparents' : `Generation ${g}`}` : 'Children'}</h3>
-              <div className="stack">{scoped.people.filter((p) => p.generation === g).map((p) => <button key={p.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(p.id)}><PersonChip ds={scoped} p={p} to={false} /></button>)}</div>
+              <div className="rows">{scoped.people.filter((p) => p.generation === g).map((p) => <PersonRow key={p.id} ds={scoped} p={p} right={<StandingPill ds={scoped} personId={p.id} />} onClick={() => setPersonId(p.id)} />)}</div>
             </div>
           ))}
           {can.contribute && <div className="card"><h3>Know someone who should be on this?</h3><p className="muted">A brother or sister, a cousin, an aunt. Tell {owner} who they are and they will get their own link, with the tree centered on them.</p><button className="btn" onClick={() => setSuggesting(true)}>Suggest someone to invite</button></div>}
@@ -309,7 +314,8 @@ function RequestAccess({ reason, owner, onSubmit, suggest, onCancel, initial }: 
 
 function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind, onBack, api, token, deviceId, onSubmitted, onRequest }: { scoped: Dataset; person: Person | null; meId?: string; whose?: string; inv: Invitation; canContribute: boolean; startKind: ContributionKind | null; onBack: () => void; api: InviteApi; token: string; deviceId: string; onSubmitted: () => Promise<void>; onRequest: () => void }) {
   const [kind, setKind] = useState<ContributionKind | null>(startKind);
-  const relation = person && meId && person.id !== meId ? howRelated(scoped, person.id, meId).label : person && meId ? 'you' : '';
+  const rawRelation = person && meId && person.id !== meId ? howRelated(scoped, person.id, meId).label : person && meId ? 'you' : '';
+  const relation = rawRelation.replace(/ \(through (.+)\)$/, (_m, name: string) => { const via = scoped.people.find((x) => displayName(x) === name); return ` · through ${via ? via.givenNames.split(' ')[0] : name}`; });
   const [text, setText] = useState('');
   const [why, setWhy] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -384,7 +390,7 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
         <div className="card">
           <h2>{displayName(person)}</h2>
           {relation && <p className="rel-label" style={{ marginTop: -6 }}>{relation === 'you' ? (whose === 'your' ? 'This is you.' : `This is ${inv.recipientName.split(' ')[0]}.`) : `${whose === 'your' ? 'Your' : whose} ${relation}.`}</p>}
-          <p className="row"><ConfidencePill c={person.confidence} /><span className="pill">{lifespan(scoped, person) || 'no dates recorded'}</span><span className="pill">{person.branch}</span></p>
+          <p className="row"><ConfidencePill c={person.confidence} /><span className="pill">{lifespan(scoped, person) || 'no dates recorded'}</span></p>
           <p>{person.bio ?? <span className="muted">No story written yet. Do you know one?</span>}</p>
           <dl className="kv">
             <dt>Parents</dt><dd>{parentsOf(scoped, person.id).map((p) => displayName(p)).join(', ') || '—'}</dd>
