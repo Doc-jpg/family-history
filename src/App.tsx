@@ -41,7 +41,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <NavLink to="/" className="brand">
-          <Mark color="var(--accent)" /> {ds.settings.familyName} Family History
+          <Mark color="var(--accent)" /> {ds.settings.familyName === 'Family' ? 'Family History' : `${ds.settings.familyName} Family History`}
         </NavLink>
         {!isInvite && (
           <nav className="nav">

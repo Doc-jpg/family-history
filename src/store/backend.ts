@@ -31,8 +31,21 @@ export interface Backend {
 const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || PUBLIC_SUPABASE.url;
 const key = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) || PUBLIC_SUPABASE.publishableKey;
 
+/** On localhost (the owner's computer, the acceptance walk) stay in local mode unless asked; anywhere else, cloud when configured. */
+function wantsCloud(): boolean {
+  if (!url || !key) return false;
+  try {
+    const h = window.location.hostname;
+    const local = h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+    if (!local) return true;
+    return localStorage.getItem('family-history:mode') === 'cloud';
+  } catch {
+    return true;
+  }
+}
+
 export function getBackend(): Backend {
-  if (url && key) return cloudBackend(createClient(url, key));
+  if (wantsCloud()) return cloudBackend(createClient(url!, key!));
   return localBackend();
 }
 

@@ -4,6 +4,6 @@
 // Repository variables VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY override these at build time.
 // Leave both empty to run in local mode.
 export const PUBLIC_SUPABASE = {
-  url: '',
-  publishableKey: '',
+  url: 'https://nlejldrqvckidlxnuryd.supabase.co',
+  publishableKey: 'sb_publishable_pgnUvrhAbeNzZSQ1TyBpWQ_lPf7ZuHg',
 };
