@@ -17,7 +17,7 @@ It would work, and it is the right answer if we ever need server-rendered pages 
 
 ## Modes
 - **Local mode** (now): the dataset lives in the browser. Invitations and contributions work for testing on one machine. Two tabs on the same browser can overwrite each other (last writer wins); not a problem once cloud mode is on.
-- **Cloud mode** (after the Supabase project exists and `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` are set as repository variables): the admin signs in by email link; the dataset is saved to `family_documents` and every save is versioned; `publish_scoped_view()` rebuilds the scoped tables relatives read; invitations are redeemed by the `redeem-invite` edge function after the relative verifies their email with a one-time code.
+- **Cloud mode** (after the Supabase project exists and `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` are set as repository variables): the admin signs in by email link and is the only database user; the dataset is saved to `family_documents` (merged with anything relatives did meanwhile, see `src/model/merge.ts`) and every save is versioned. Relatives never touch the database: their browser calls the `invite` edge function, which applies the invitation rules (`src/model/access.ts`, the same code local mode runs) with the service key, appends their submissions to the document, mints signed upload and download URLs for media, and returns only the redacted dataset for their scope.
 
 ## Security model (summary; detail in PRIVACY.md)
 - Admin = the one auth user in `admins`. Everything else is denied by default through row-level security.

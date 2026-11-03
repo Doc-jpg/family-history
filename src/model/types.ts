@@ -153,6 +153,8 @@ export interface Invitation {
   deviceHash?: string; // sha256 of the first device's id; once set, contributing works only there
   boundAt?: string;
   deviceLabel?: string; // e.g. "iPhone Safari", for the admin's eyes
+  releasedAt?: string; // when the admin last pressed Release, so a stale server binding does not come back
+  codeAttempts?: number; // wrong codes entered since the last successful open; locked at MAX_CODE_ATTEMPTS
 }
 
 // Someone who opened a link that is not theirs (or no link at all) and asked for their own.

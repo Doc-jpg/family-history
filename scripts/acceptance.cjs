@@ -169,7 +169,7 @@ function check(name, ok, detail = '') { results.push({ name, ok, detail }); cons
       await page.waitForSelector('text=ACCEPTANCE TEST memory');
       check('contribution reached admin inbox with contributor identity', (await page.textContent('body')).includes('Test Relative'));
       await page.waitForSelector('text=Attachments (2)');
-      check('attachments render in the inbox (image + download)', !!(await page.$('img[alt="test-photo.png"]')) && !!(await page.$('a:has-text("Download")')));
+      check('attachments render in the inbox (image + download)', !!(await page.$('img[alt="test-photo.png"]')) && !!(await page.$('a:has-text("Open")')));
       await shot('admin-inbox');
       await page.click('button:has-text("Approve")');
       await page.waitForTimeout(200);

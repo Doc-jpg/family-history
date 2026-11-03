@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AccessScope, Branch, Dataset, Invitation, Role } from '../model/types';
-import { createInvitation, releaseDevice, suggestScope } from '../model/access';
+import { MAX_CODE_ATTEMPTS, createInvitation, releaseDevice, suggestScope } from '../model/access';
 import { displayName } from '../model/graph';
 import { audit } from '../model/review';
 
@@ -74,7 +74,7 @@ export default function InviteManager({ ds, update }: Props) {
                 <td>{i.role}</td>
                 <td><small>{i.scope.branches.join(', ') || 'specific people only'}{i.scope.includeLivingDetails ? ' + living details' : ''}</small></td>
                 <td><span className={`pill ${i.status === 'active' ? 'ok' : i.status === 'pending' ? 'warn' : 'bad'}`}>{i.status}</span>{i.verifiedIdentity && <><br /><small>{i.verifiedIdentity}</small></>}</td>
-                <td><small>{i.deviceHash ? <>{i.deviceLabel ?? 'bound'}<br />{i.boundAt?.slice(0, 10)}<br /><button className="btn small" title="Let the next device that enters the code become the contributor device (new phone, cleared browser)" onClick={() => update((d) => audit(releaseDevice(d, i.id), { actor: 'admin', action: 'release-device', entity: 'invitation', entityId: i.id }))}>Release</button></> : 'not yet opened'}<br /><span className="muted">forwarded: {i.forwarded ?? 'view'}</span></small></td>
+                <td><small>{i.deviceHash ? <>{i.deviceLabel ?? 'bound'}<br />{i.boundAt?.slice(0, 10)}<br /><button className="btn small" title="Let the next device that enters the code become the contributor device (new phone, cleared browser)" onClick={() => update((d) => audit(releaseDevice(d, i.id), { actor: 'admin', action: 'release-device', entity: 'invitation', entityId: i.id }))}>Release</button></> : (i.codeAttempts ?? 0) >= MAX_CODE_ATTEMPTS ? <>locked after wrong codes<br /><button className="btn small" onClick={() => update((d) => audit(releaseDevice(d, i.id), { actor: 'admin', action: 'unlock-invitation', entity: 'invitation', entityId: i.id }))}>Unlock</button></> : 'not yet opened'}<br /><span className="muted">forwarded: {i.forwarded ?? 'view'}</span></small></td>
                 <td><small>{i.expiresAt.slice(0, 10)}</small></td>
                 <td><small>{i.lastSeenAt?.slice(0, 16).replace('T', ' ') ?? '—'}</small></td>
                 <td className="row">{i.status !== 'revoked' ? <button className="btn small danger" onClick={() => setStatus(i.id, 'revoked')}>Revoke</button> : <button className="btn small" onClick={() => setStatus(i.id, 'pending')}>Reinstate</button>}</td>

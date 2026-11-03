@@ -18,7 +18,7 @@ A private, collaborative family-history platform: an interactive tree, a map of 
 - `src/model/` the data model (`types.ts`), the empty public seed, graph utilities (relationship finder), access scoping, review workflow, GEDCOM export. Pure functions, all unit-tested.
 - `src/store/` persistence: local (browser) or cloud (Supabase) behind one interface; media in IndexedDB or Supabase Storage.
 - `src/views/` Home, Tree (D3), Map (Leaflet), Timeline, Person, Relation explorer, Admin, Invite (the relative's experience).
-- `supabase/schema.sql` the Postgres schema with row-level security; `supabase/functions/redeem-invite/` the edge function that binds an invitation to one verified email and one device.
+- `supabase/schema.sql` the Postgres schema (admin-only document with versioned snapshots, private media bucket); `supabase/functions/invite/` the edge function that serves relatives: it applies the invitation rules with the service key and returns only the redacted dataset for their scope. `npm run bundle:functions` builds it into one file for the dashboard editor.
 - `docs/` ARCHITECTURE, PRIVACY, PLAN, DECISIONS.
 - `data/private/` (git-ignored): the real dataset, seed sources, research log, journal, status notes and backups. Never committed.
 

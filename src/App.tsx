@@ -9,6 +9,7 @@ import PersonView from './views/PersonView';
 import Admin from './views/Admin';
 import InviteView from './views/InviteView';
 import RelationView from './views/RelationView';
+import SignIn from './views/SignIn';
 
 export function Mark({ color = 'currentColor' }: { color?: string }) {
   return (
@@ -21,7 +22,7 @@ export function Mark({ color = 'currentColor' }: { color?: string }) {
 }
 
 export default function App() {
-  const { ds, mode } = useStore();
+  const { ds, mode, auth, ready, saveError, backend } = useStore();
   const loc = useLocation();
   useEffect(() => {
     document.documentElement.dataset.theme = ds.settings.theme;
@@ -34,6 +35,8 @@ export default function App() {
   }, [ds.settings]);
 
   const isInvite = loc.pathname.startsWith('/invite');
+  const gated = mode === 'cloud' && !isInvite && (auth.status !== 'signed-in' || !auth.admin);
+  if (mode === 'cloud' && !isInvite && !ready) return <div className="page empty">Loading…</div>;
   return (
     <div className="app">
       <header className="topbar">
@@ -50,10 +53,13 @@ export default function App() {
           </nav>
         )}
         <span className="spacer" />
+        {saveError && <span className="pill dot bad" title={saveError}>Not saved</span>}
         <span className={`pill dot ${mode === 'cloud' ? 'ok' : 'warn'}`} title={mode === 'cloud' ? 'Saved to the family database' : 'Saved only in this browser until the cloud database is connected'}>
           {mode === 'cloud' ? 'Cloud' : 'Local draft'}
         </span>
+        {mode === 'cloud' && auth.status === 'signed-in' && !isInvite && <button className="btn small" onClick={() => backend.signOut?.()} title={auth.email}>Sign out</button>}
       </header>
+      {gated ? <SignIn /> : (
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/tree" element={<TreeView />} />
@@ -65,6 +71,7 @@ export default function App() {
         <Route path="/invite/:token" element={<InviteView />} />
         <Route path="*" element={<div className="page empty">Nothing here.</div>} />
       </Routes>
+      )}
       {!isInvite && (
         <footer className="footer">
           <span>Private family archive. Nothing here is public.</span>

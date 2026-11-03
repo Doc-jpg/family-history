@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "accept": "node scripts/acceptance.cjs"
+    "accept": "node scripts/acceptance.cjs",
+    "bundle:functions": "node scripts/bundle-functions.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

@@ -119,7 +119,12 @@ export async function createInvitation(input: {
 export type RedeemResult =
   | { ok: true; mode: 'full'; invitation: Invitation; firstDevice: boolean }
   | { ok: true; mode: 'view'; invitation: Invitation }
-  | { ok: false; reason: 'not-found' | 'revoked' | 'expired' | 'bad-code' | 'bound-elsewhere' | 'code-required' };
+  | { ok: false; reason: 'not-found' | 'revoked' | 'expired' | 'bad-code' | 'bound-elsewhere' | 'code-required' | 'locked' };
+
+/** Strip the secrets before an invitation record leaves the server or the admin's store. */
+export function publicInvitation(i: Invitation): Invitation {
+  return { ...i, tokenHash: '', codeHash: '', email: undefined, deliveryNote: undefined };
+}
 
 export type ProbeResult = { state: 'not-found' | 'revoked' | 'expired' } | { state: 'unbound' | 'mine' | 'elsewhere'; invitation: Invitation };
 
@@ -146,6 +151,7 @@ export async function redeemInvitation(ds: Dataset, rawToken: string, code: stri
   if (!('invitation' in probe)) return { ok: false, reason: probe.state };
   const inv = probe.invitation;
   const forwarded = inv.forwarded ?? 'view';
+  if ((inv.codeAttempts ?? 0) >= MAX_CODE_ATTEMPTS && code.trim()) return { ok: false, reason: 'locked' };
   const codeOk = code.trim().length > 0 && (await sha256Hex(code.trim())) === inv.codeHash;
   if (probe.state === 'elsewhere') {
     if (forwarded === 'refuse') return { ok: false, reason: 'bound-elsewhere' };
@@ -165,8 +171,11 @@ export async function bindDevice(ds: Dataset, invitationId: string, deviceId: st
 
 /** Let the same link be claimed again by the next device that unlocks it. */
 export function releaseDevice(ds: Dataset, invitationId: string): Dataset {
-  return { ...ds, invitations: ds.invitations.map((i) => (i.id === invitationId ? { ...i, deviceHash: undefined, boundAt: undefined, deviceLabel: undefined } : i)) };
+  return { ...ds, invitations: ds.invitations.map((i) => (i.id === invitationId ? { ...i, deviceHash: undefined, boundAt: undefined, deviceLabel: undefined, releasedAt: new Date().toISOString(), codeAttempts: 0 } : i)) };
 }
+
+/** Wrong codes allowed before the link locks (the admin presses Release to reset). Six digits is a small space; this keeps guessing pointless. */
+export const MAX_CODE_ATTEMPTS = 8;
 
 /** Is this session still valid right now? Full sessions must still be on the bound device. Used on every load of the invite page. */
 export async function sessionStillValid(ds: Dataset, invitationId: string, deviceId: string, mode: 'full' | 'view', now = new Date()): Promise<boolean> {
