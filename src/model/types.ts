@@ -168,6 +168,7 @@ export interface AccessRequest {
   phone?: string;
   message?: string;
   viaInvitationId?: string; // the invitation whose link they tried
+  personId?: string; // "I am this person in the tree": a grant is centered on them
   deviceHash?: string;
   submittedAt: string;
   status: 'new' | 'granted' | 'declined';

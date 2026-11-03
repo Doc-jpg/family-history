@@ -67,6 +67,12 @@ export default function InviteView() {
   const [suggested, setSuggested] = useState(false);
   const [centerOnMe, setCenterOnMe] = useState(true);
   const deviceId = useMemo(() => getDeviceId(), []);
+  // A look-only visitor can pick themselves in the tree and see it from where they stand, before
+  // they have a link of their own. Remembered per device and per link.
+  const VIEW_AS = `family-history:view-as:${token}`;
+  const [viewAs, setViewAsState] = useState<string | null>(() => { try { return localStorage.getItem(VIEW_AS); } catch { return null; } });
+  const setViewAs = (id: string | null) => { setViewAsState(id); try { if (id) localStorage.setItem(VIEW_AS, id); else localStorage.removeItem(VIEW_AS); } catch { /* ignore */ } };
+  const [requestPrefill, setRequestPrefill] = useState<{ name?: string; relationship?: string; message?: string; personId?: string } | null>(null);
 
   // On load: restore a session if it is still valid, otherwise work out what this device may do.
   useEffect(() => {
@@ -154,18 +160,26 @@ export default function InviteView() {
   const can = mode === 'full' ? ROLE_CAN[inv.role] : ROLE_CAN.viewer;
   const person = personId ? scoped.people.find((p) => p.id === personId) : null;
   const gens = [...new Set(scoped.people.map((p) => p.generation))].sort((a, b) => b - a);
-  const me = inv.personId ? scoped.people.find((p) => p.id === inv.personId) ?? null : null;
-  // A forwarded, view-only visitor is not the invitee: say "Laura's mother", not "your mother".
-  const isMe = mode === 'full';
+  const chosen = viewAs ? scoped.people.find((p) => p.id === viewAs) ?? null : null;
+  const me = chosen ?? (inv.personId ? scoped.people.find((p) => p.id === inv.personId) ?? null : null);
+  // A forwarded, view-only visitor is not the invitee: say "Laura's mother", not "your mother",
+  // unless they have picked themselves in the tree.
+  const isMe = !!chosen || mode === 'full';
+  const root = scoped.people.find((p) => p.id === scoped.settings.rootPersonId);
+  const askForLink = (extra?: { message?: string }) => {
+    const relation = me && root && me.id !== root.id ? `${owner}'s ${howRelated(scoped, me.id, root.id).label}` : '';
+    setRequestPrefill({ name: me ? `${me.givenNames} ${me.surname}`.trim() : undefined, relationship: relation || undefined, personId: me?.id, ...extra });
+    setShowRequest(true);
+  };
   const whose = me ? (isMe ? 'your' : `${me.givenNames.split(' ')[0]}'s`) : '';
   const relLabel = (label: string) => (label.startsWith('connection') ? label : `${whose} ${label}`);
   const groupTitle = (t: string) => (isMe ? t : t.replace(/^Your /, `${whose} `));
   const groups = me ? relativesOf(scoped, me.id) : [];
   const gaps: Gap[] = me ? gapsFor(scoped, me.id) : [];
-  const toConfirm = me && can.contribute ? needsConfirmation(scoped, scoped.people.filter((p) => groups.some((g) => g.entries.some((e) => e.person.id === p.id && e.distance <= 3))), inv.id) : [];
+  const toConfirm = me ? needsConfirmation(scoped, scoped.people.filter((p) => groups.some((g) => g.entries.some((e) => e.person.id === p.id && e.distance <= 3))), inv.id) : [];
 
   if (showRequest && !requested) {
-    return <main className="page invite" style={{ maxWidth: 560 }}><RequestAccess reason="You are viewing a link that was shared with someone else, so this device can look but not add." owner={owner} onSubmit={async (r) => { await api.requestAccess(token, deviceId, r); setRequested(true); setShowRequest(false); }} /></main>;
+    return <main className="page invite" style={{ maxWidth: 560 }}><RequestAccess reason={chosen ? `You are looking as ${chosen.givenNames.split(' ')[0]}. A link of your own lets you add memories, fix dates and fill blanks, with the tree centered on you.` : 'This link is look-only. A link of your own lets you add memories, fix dates and fill blanks, with the tree centered on you.'} owner={owner} initial={requestPrefill ?? undefined} onCancel={() => { setShowRequest(false); setRequestPrefill(null); }} onSubmit={async (r) => { await api.requestAccess(token, deviceId, { ...r, personId: requestPrefill?.personId }); setRequested(true); setShowRequest(false); setRequestPrefill(null); }} /></main>;
   }
 
   if (suggesting) {
@@ -176,22 +190,25 @@ export default function InviteView() {
     <main className="page invite">
       {suggested && <div className="banner" style={{ borderColor: 'var(--ok)' }}>Thank you. {owner} will send them a link.</div>}
       {requested && <div className="banner" style={{ borderColor: 'var(--ok)' }}>Your request for contributor access is with {owner}.</div>}
-      {mode === 'view' && !requested && (
-        <div className="banner warn row" style={{ justifyContent: 'space-between' }}>
-          <span><strong>View only.</strong> This link was shared with {inv.recipientName}; on this device you can look but not add. Want to contribute memories, photos or corrections?</span>
-          <button className="btn primary small" onClick={() => setShowRequest(true)}>Request access to contribute</button>
-        </div>
-      )}
       <section className="band invite">
-        <h1>{mode === 'full' ? `Welcome, ${inv.recipientName.split(' ')[0]}.` : 'The family, so far.'}</h1>
-        <p className="lede">{me ? (isMe ? `This is your family as we know it so far, seen from where you stand: your parents and grandparents, your children, your brothers and sisters. ` : `This is ${whose} family as we know it so far, seen from where ${me.givenNames.split(' ')[0]} stands. `) : 'Here is what we know so far about the family. '}{can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : mode === 'full' ? `You have been given a look-only link; if you would like to add memories, ask ${owner} for a contributor link.` : ''}</p>
-        <div className="row"><span className="pill">{mode === 'full' ? (inv.role === 'viewer' ? 'look only' : 'you can add') : 'view only'}</span>{me && <span className="pill">centered on {isMe ? 'you' : me.givenNames.split(' ')[0]}</span>}<span className="pill">everything is reviewed first</span></div>
+        <h1>{isMe && me ? `Welcome, ${me.givenNames.split(' ')[0]}.` : mode === 'full' ? `Welcome, ${inv.recipientName.split(' ')[0]}.` : 'The family, so far.'}</h1>
+        <p className="lede">{me ? (isMe ? `This is your family as we know it so far, seen from where you stand: your parents and grandparents, your children, your brothers and sisters. ` : `This is ${whose} family as we know it so far, seen from where ${me.givenNames.split(' ')[0]} stands. `) : 'Here is what we know so far about the family. '}{can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : chosen ? `You are looking, not adding yet. When you are ready to add a memory, fix a date or fill a blank, ask ${owner} for a link of your own and it opens centered on you.` : `Everything here is as the family has told it so far. Find yourself below to see it from where you stand.`}</p>
+        <div className="row">
+          <span className="pill">{can.contribute ? 'you can add' : 'looking'}</span>
+          {me && <span className="pill">centered on {isMe ? 'you' : me.givenNames.split(' ')[0]}</span>}
+          {chosen && <button className="btn small" style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', borderColor: 'transparent' }} onClick={() => { setViewAs(null); setPersonId(null); setTab('people'); }}>Not {chosen.givenNames.split(' ')[0]}?</button>}
+          {!can.contribute && !requested && <button className="btn primary small" onClick={() => askForLink()}>Ask for my own link</button>}
+          <span className="pill">everything is reviewed first</span>
+        </div>
         <Constellation ds={scoped} className="constellation" />
       </section>
+      {!can.contribute && !chosen && !requested && (
+        <ViewAs scoped={scoped} owner={owner} onPick={(id) => { setViewAs(id); setPersonId(null); setTab('people'); }} onNotHere={() => askForLink({ message: 'Not in the tree yet.' })} />
+      )}
       <nav className="tabs">
         <button className={tab === 'people' ? 'active' : ''} onClick={() => { setTab('people'); setPersonId(null); }}>{me ? (isMe ? 'Your people' : `${whose} people`) : 'People'}</button>
         <button className={tab === 'tree' ? 'active' : ''} onClick={() => setTab('tree')}>Tree</button>
-        {me && can.contribute && (gaps.length > 0 || toConfirm.length > 0) && <button className={tab === 'blanks' ? 'active' : ''} onClick={() => { setTab('blanks'); setPersonId(null); }}>Fill in the blanks ({gaps.length + toConfirm.length})</button>}
+        {me && (gaps.length > 0 || toConfirm.length > 0) && <button className={tab === 'blanks' ? 'active' : ''} onClick={() => { setTab('blanks'); setPersonId(null); }}>{can.contribute ? 'Fill in the blanks' : 'What is missing'} ({gaps.length + toConfirm.length})</button>}
       </nav>
       {tab === 'tree' && (
         <>
@@ -219,11 +236,11 @@ export default function InviteView() {
               <h3 style={{ margin: '12px 0 0' }}>Blanks you might fill</h3>
             </>
           )}
-          <p className="muted">These are the things nobody has written down yet about your side of the family. Pick any one; a few words is plenty, and "I don't know" is a fine answer too.</p>
+          <p className="muted">{can.contribute ? 'These are the things nobody has written down yet about your side of the family. Pick any one; a few words is plenty, and "I don\'t know" is a fine answer too.' : `These are the things nobody has written down yet about ${isMe ? 'your' : whose} side of the family. If you know one, ask ${owner} for a link of your own and you can answer it straight away.`}</p>
           {gaps.map((g) => (
             <div className="gap" key={g.id}>
               <span><strong>{g.question}</strong>{g.personId !== me.id && <><br /><span className="rel-label">{g.personName}</span></>}</span>
-              <button className="btn primary small" onClick={() => { setStartKind(g.kind); setPersonId(g.personId); setTab('people'); }}>Answer</button>
+              {can.contribute ? <button className="btn primary small" onClick={() => { setStartKind(g.kind); setPersonId(g.personId); setTab('people'); }}>Answer</button> : <button className="btn small" onClick={() => askForLink({ message: `Can answer: ${g.question}${g.personId !== me.id ? ` (${g.personName})` : ''}` })}>I know this</button>}
             </div>
           ))}
         </div>
@@ -254,18 +271,18 @@ export default function InviteView() {
         </div>
       )}
       {tab === 'people' && (person || personId === '__branch') && (
-        <Contribute key={(person?.id ?? 'branch') + (startKind ?? '')} scoped={scoped} person={person ?? null} meId={me?.id} whose={whose} inv={inv} canContribute={can.contribute} startKind={startKind} onBack={() => { setPersonId(null); setStartKind(null); }} api={api} token={token} deviceId={deviceId} onSubmitted={refreshScoped} onRequest={() => setShowRequest(true)} />
+        <Contribute key={(person?.id ?? 'branch') + (startKind ?? '')} scoped={scoped} person={person ?? null} meId={me?.id} whose={whose} inv={inv} canContribute={can.contribute} startKind={startKind} onBack={() => { setPersonId(null); setStartKind(null); }} api={api} token={token} deviceId={deviceId} onSubmitted={refreshScoped} onRequest={() => askForLink(person ? { message: `About ${displayName(person)}.` } : undefined)} />
       )}
     </main>
   );
 }
 
-function RequestAccess({ reason, owner, onSubmit, suggest, onCancel }: { reason: string; owner: string; onSubmit: (r: Omit<AccessRequestInput, 'deviceHash' | 'viaInvitationId'>) => Promise<void>; suggest?: boolean; onCancel?: () => void }) {
-  const [name, setName] = useState('');
-  const [relationship, setRelationship] = useState('');
+function RequestAccess({ reason, owner, onSubmit, suggest, onCancel, initial }: { reason: string; owner: string; onSubmit: (r: Omit<AccessRequestInput, 'deviceHash' | 'viaInvitationId'>) => Promise<void>; suggest?: boolean; onCancel?: () => void; initial?: { name?: string; relationship?: string; message?: string } }) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [relationship, setRelationship] = useState(initial?.relationship ?? '');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initial?.message ?? '');
   const [busy, setBusy] = useState(false);
   async function send() {
     setBusy(true);
@@ -273,8 +290,8 @@ function RequestAccess({ reason, owner, onSubmit, suggest, onCancel }: { reason:
   }
   return (
     <div className="card" style={{ marginTop: 40 }}>
-      <h1>{suggest ? 'Suggest someone to invite' : 'Request your own access'}</h1>
-      <p className="muted">{reason}{suggest ? '' : ` Each family member gets a personal link and code. Tell ${owner} who you are to get yours.`}</p>
+      <h1>{suggest ? 'Suggest someone to invite' : 'Ask for your own link'}</h1>
+      <p className="muted">{reason}{suggest ? '' : ` Each family member gets a personal link and a code, sent by ${owner}. Tell ${owner} how to reach you.`}</p>
       <div className="form-grid">
         <label className="field">{suggest ? 'Their name' : 'Your name'}<input value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="field">{suggest ? 'How they are related to you' : 'How you are related'}<input value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder={suggest ? 'my sister, my cousin' : `${owner}'s aunt, Mom's brother`} /></label>
@@ -283,7 +300,7 @@ function RequestAccess({ reason, owner, onSubmit, suggest, onCancel }: { reason:
       </div>
       <label className="field" style={{ marginTop: 10 }}>Anything to add (optional)<textarea value={message} onChange={(e) => setMessage(e.target.value)} /></label>
       <div className="row" style={{ marginTop: 10 }}>
-        <button className="btn primary" onClick={send} disabled={busy || !name.trim() || !relationship.trim() || !(email.trim() || phone.trim())}>{suggest ? 'Send suggestion' : 'Send request'}</button>
+        <button className="btn primary" onClick={send} disabled={busy || !name.trim() || !relationship.trim() || !(email.trim() || phone.trim())}>{suggest ? 'Send suggestion' : 'Ask for my link'}</button>
         {onCancel && <button className="btn" onClick={onCancel}>Cancel</button>}
       </div>
     </div>
@@ -380,7 +397,7 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
       )}
       {person && <StandingCard ds={scoped} person={person} myId={inv.id} canAttest={canContribute} onAttest={async (stance, note, field) => { const r = await api.attest(token, deviceId, person.id, stance, note, field); if (r.ok) await onSubmitted(); return r.ok; }} />}
       {sent && <div className="banner ok" role="status">Sent. It goes to {ownerName(scoped)} to review before it becomes part of the record. Add more whenever you like.</div>}
-      {!canContribute && <div className="card"><h3>Know something about {person ? person.givenNames.split(' ')[0] : 'the family'}?</h3><p className="muted">Adding memories, corrections and photos needs contributor access, which is personal to each family member.</p><button className="btn primary" onClick={onRequest}>Request access to contribute</button></div>}
+      {!canContribute && <div className="card"><h3>Know something about {person ? person.givenNames.split(' ')[0] : 'the family'}?</h3><p className="muted">A memory, a correction, a photo, where they lived. Adding needs a link of your own, personal to you, and it takes {ownerName(scoped)} a minute to send one.</p><button className="btn primary" onClick={onRequest}>Ask for my own link</button></div>}
       {canContribute && !kind && (
         <div className="card">
           <h3>{person ? `Add to ${person.givenNames.split(' ')[0]}'s story` : 'Add a general note'}</h3>
@@ -407,6 +424,28 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
           <div className="row"><button className="btn primary" onClick={submit} disabled={sending || (!text.trim() && !Object.values(fields).some((v) => v.trim()) && files.length === 0)}>{sending ? 'Sending…' : `Send to ${ownerName(scoped)}`}</button><button className="btn" onClick={() => setKind(null)}>Back</button></div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/** "Find yourself": a look-only visitor picks who they are and the whole page re-centers on them. */
+function ViewAs({ scoped, owner, onPick, onNotHere }: { scoped: Dataset; owner: string; onPick: (id: string) => void; onNotHere: () => void }) {
+  const [q, setQ] = useState('');
+  const people = scoped.people.filter((p) => !p.placeholder);
+  const living = people.filter((p) => p.living !== 'no');
+  const needle = q.trim().toLowerCase();
+  const hits = needle ? people.filter((p) => `${p.givenNames} ${p.surname} ${p.maidenName ?? ''} ${(p.altNames ?? []).join(' ')}`.toLowerCase().includes(needle)).slice(0, 8) : living.slice(0, 8);
+  return (
+    <div className="card raised" style={{ marginBottom: 18 }}>
+      <h3 style={{ marginTop: 0 }}>See it from where you stand</h3>
+      <p className="muted" style={{ marginTop: 4 }}>Pick yourself and the tree re-centers on you: your parents and grandparents, your children, your side of the family, and the blanks only you can fill. Nothing changes for anyone else.</p>
+      <label className="field">Your name<input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Start typing" autoComplete="off" /></label>
+      <div className="row" style={{ marginTop: 8 }}>
+        {hits.map((p) => <button key={p.id} className="chip" onClick={() => onPick(p.id)}>{p.givenNames.split(' ')[0]} {p.surname}{p.maidenName && p.maidenName !== p.surname ? ` (née ${p.maidenName})` : ''}</button>)}
+        {needle && hits.length === 0 && <span className="muted">Nobody by that name yet.</span>}
+      </div>
+      <p className="muted" style={{ margin: '10px 0 0' }}>Not in the tree yet? <button className="btn small" onClick={onNotHere}>Ask {owner} for a link</button></p>
     </div>
   );
 }

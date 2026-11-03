@@ -40,7 +40,7 @@ export default function Requests({ ds, update }: Props) {
           return (
             <tr key={r.id}>
               <td><strong>{r.name}</strong>{r.message && <><br /><small className="muted">{r.message}</small></>}</td>
-              <td>{r.relationship}</td>
+              <td>{r.relationship}{r.personId && <><br /><small className="muted">in the tree as {(() => { const p = ds.people.find((x) => x.id === r.personId); return p ? `${p.givenNames} ${p.surname}`.trim() : r.personId; })()}; a grant centers on them</small></>}</td>
               <td><small>{[r.email, r.phone].filter(Boolean).join(' · ') || '—'}</small></td>
               <td><small>{via ? `${via.recipientName}'s link` : 'no link'}</small></td>
               <td><small>{new Date(r.submittedAt).toLocaleString()}</small></td>

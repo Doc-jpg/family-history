@@ -207,8 +207,9 @@ export async function grantAccessRequest(ds: Dataset, requestId: string, role: R
   const req = ds.accessRequests.find((r) => r.id === requestId);
   if (!req) return null;
   const via = ds.invitations.find((i) => i.id === req.viaInvitationId);
-  const scope: AccessScope = via ? { ...via.scope } : { branches: ['paternal', 'maternal'], personIds: [], includeLivingDetails: false };
-  const created = await createInvitation({ recipientName: req.name, email: req.email, deliveryNote: req.phone ? `text ${req.phone}` : undefined, role, scope, days });
+  const self = req.personId && ds.people.some((p) => p.id === req.personId) ? req.personId : undefined;
+  const scope: AccessScope = self ? suggestScope(ds, self) : via ? { ...via.scope } : { branches: ['paternal', 'maternal'], personIds: [], includeLivingDetails: false };
+  const created = await createInvitation({ recipientName: req.name, personId: self, email: req.email, deliveryNote: req.phone ? `text ${req.phone}` : undefined, role, scope, days });
   const next: Dataset = {
     ...ds,
     invitations: [created.invitation, ...ds.invitations],

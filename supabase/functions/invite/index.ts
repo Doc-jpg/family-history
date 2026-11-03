@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
         const r = body.request as Record<string, string | undefined>;
         if (!r || !r.name || !r.relationship) return json({ ok: false, reason: 'bad-request' }, 400);
         const deviceHash = await sha256Hex(deviceId);
-        const clean = { name: String(r.name).slice(0, 120), relationship: String(r.relationship).slice(0, 200), email: r.email ? String(r.email).slice(0, 200) : undefined, phone: r.phone ? String(r.phone).slice(0, 40) : undefined, message: r.message ? String(r.message).slice(0, 2000) : undefined };
+        const clean = { name: String(r.name).slice(0, 120), relationship: String(r.relationship).slice(0, 200), email: r.email ? String(r.email).slice(0, 200) : undefined, phone: r.phone ? String(r.phone).slice(0, 40) : undefined, message: r.message ? String(r.message).slice(0, 2000) : undefined, personId: r.personId && doc.people.some((p) => p.id === r.personId) ? String(r.personId) : undefined };
         await mutate(async (d) => submitAccessRequest(d, { ...clean, viaInvitationId: 'invitation' in pr ? pr.invitation.id : undefined, deviceHash }).ds);
         return json({ ok: true });
       }

@@ -22,6 +22,7 @@ function isVisible(ds, p, scope) {
   if (scope.personIds.includes(p.id)) return true;
   if (scope.branches.includes(p.branch)) return true;
   if (p.branch === "both" && (scope.branches.includes("paternal") || scope.branches.includes("maternal"))) return true;
+  if (p.branch === "inlaw" && scope.branches.includes("household")) return true;
   return false;
 }
 function redact(ds, scope) {
@@ -250,7 +251,7 @@ Deno.serve(async (req) => {
         const r = body.request;
         if (!r || !r.name || !r.relationship) return json({ ok: false, reason: "bad-request" }, 400);
         const deviceHash = await sha256Hex(deviceId);
-        const clean = { name: String(r.name).slice(0, 120), relationship: String(r.relationship).slice(0, 200), email: r.email ? String(r.email).slice(0, 200) : void 0, phone: r.phone ? String(r.phone).slice(0, 40) : void 0, message: r.message ? String(r.message).slice(0, 2e3) : void 0 };
+        const clean = { name: String(r.name).slice(0, 120), relationship: String(r.relationship).slice(0, 200), email: r.email ? String(r.email).slice(0, 200) : void 0, phone: r.phone ? String(r.phone).slice(0, 40) : void 0, message: r.message ? String(r.message).slice(0, 2e3) : void 0, personId: r.personId && doc.people.some((p) => p.id === r.personId) ? String(r.personId) : void 0 };
         await mutate(async (d) => submitAccessRequest(d, { ...clean, viaInvitationId: "invitation" in pr ? pr.invitation.id : void 0, deviceHash }).ds);
         return json({ ok: true });
       }
