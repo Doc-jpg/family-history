@@ -184,7 +184,7 @@ export default function InviteView() {
       <section className="band invite">
         <h1>{mode === 'full' ? `Welcome, ${inv.recipientName.split(' ')[0]}.` : 'The family, so far.'}</h1>
         <p className="lede">{me ? (isMe ? `This is your family as we know it so far, seen from where you stand: your parents and grandparents, your children, your brothers and sisters. ` : `This is ${whose} family as we know it so far, seen from where ${me.givenNames.split(' ')[0]} stands. `) : 'Here is what we know so far about the family. '}{can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : mode === 'full' ? `You have been given a look-only link; if you would like to add memories, ask ${owner} for a contributor link.` : ''}</p>
-        <div className="row"><span className="pill">{mode === 'full' ? inv.role : 'view only'}</span>{me && <span className="pill">centered on {isMe ? 'you' : me.givenNames.split(' ')[0]}</span>}</div>
+        <div className="row"><span className="pill">{mode === 'full' ? (inv.role === 'viewer' ? 'look only' : 'you can add') : 'view only'}</span>{me && <span className="pill">centered on {isMe ? 'you' : me.givenNames.split(' ')[0]}</span>}<span className="pill">everything is reviewed first</span></div>
         <Constellation ds={scoped} className="constellation" />
       </section>
       <nav className="tabs">
@@ -296,7 +296,7 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
   const [why, setWhy] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [sent, setSent] = useState(false);
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [files, setFiles] = useState<(UploadedFile & { previewUrl?: string })[]>([]);
   const [rec, setRec] = useState<{ stop: () => Promise<Blob> } | null>(null);
   const [busy, setBusy] = useState('');
   const def = KINDS.find((k) => k.kind === kind);
@@ -308,7 +308,7 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
       setBusy(`Saving ${f.name}…`);
       try {
         const up = await api.upload(token, deviceId, f, f.name, kindOf(f));
-        setFiles((x) => [...x, up]);
+        setFiles((x) => [...x, { ...up, previewUrl: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined }]);
         setBusy('');
       } catch (e) {
         setBusy(`${f.name} could not be saved: ${(e as Error).message}`);
@@ -378,12 +378,12 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
         </div>
       )}
       {person && <StandingCard ds={scoped} person={person} myId={inv.id} canAttest={canContribute} onAttest={async (stance, note, field) => { const r = await api.attest(token, deviceId, person.id, stance, note, field); if (r.ok) await onSubmitted(); return r.ok; }} />}
-      {sent && <div className="banner" style={{ borderColor: 'var(--ok)' }}>Thank you. It is in {ownerName(scoped)}'s review inbox. You can add more.</div>}
+      {sent && <div className="banner ok" role="status">Sent. It goes to {ownerName(scoped)} to review before it becomes part of the record. Add more whenever you like.</div>}
       {!canContribute && <div className="card"><h3>Know something about {person ? person.givenNames.split(' ')[0] : 'the family'}?</h3><p className="muted">Adding memories, corrections and photos needs contributor access, which is personal to each family member.</p><button className="btn primary" onClick={onRequest}>Request access to contribute</button></div>}
       {canContribute && !kind && (
         <div className="card">
           <h3>{person ? `Add to ${person.givenNames.split(' ')[0]}'s story` : 'Add a general note'}</h3>
-          <div className="grid">{KINDS.filter((k) => (person ? k.kind !== 'branch-note' : ['branch-note', 'lead', 'context', 'identify-photo', 'missing-person', 'oral-history'].includes(k.kind))).map((k) => <button key={k.kind} className="btn" style={{ textAlign: 'left' }} onClick={() => setKind(k.kind)}>{k.label}</button>)}</div>
+          <div className="tiles">{KINDS.filter((k) => (person ? k.kind !== 'branch-note' : ['branch-note', 'lead', 'context', 'identify-photo', 'missing-person', 'oral-history'].includes(k.kind))).map((k) => <button key={k.kind + k.label} className="tile" onClick={() => setKind(k.kind)}><strong>{k.label}</strong><span>{k.prompt.length > 70 ? k.prompt.slice(0, 68).replace(/\s\S*$/, '') + '…' : k.prompt}</span></button>)}</div>
         </div>
       )}
       {canContribute && def && (
@@ -400,7 +400,7 @@ function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind
               <button className={`btn small ${rec ? 'danger' : ''}`} type="button" onClick={toggleRecord}>{rec ? '■ Stop recording' : '● Record a voice memo'}</button>
             </div>
             {busy && <p className="muted" style={{ marginTop: 6 }}>{busy}</p>}
-            {files.length > 0 && <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>{files.map((f) => <li key={f.id}>{f.kind}: {f.name} <small className="muted">({Math.max(1, Math.round(f.size / 1024))} KB)</small> <button className="btn small" type="button" onClick={() => setFiles((x) => x.filter((y) => y.id !== f.id))}>remove</button></li>)}</ul>}
+            {files.length > 0 && <ul style={{ margin: '8px 0 0', paddingLeft: 0, listStyle: 'none' }} className="stack">{files.map((f) => <li key={f.id} className="row" style={{ justifyContent: 'space-between' }}><span className="row" style={{ gap: 8 }}>{f.previewUrl ? <img src={f.previewUrl} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} /> : <span className="pill">{f.kind}</span>}<span>{f.name} <small className="muted">({Math.max(1, Math.round(f.size / 1024))} KB)</small></span></span><button className="btn small ghost" type="button" onClick={() => setFiles((x) => x.filter((y) => y.id !== f.id))}>Remove</button></li>)}</ul>}
           </div>
           <p className="muted" style={{ marginTop: 8 }}>Your name is attached as "{inv.recipientName}" so {ownerName(scoped)} can follow up. Only the admin sees submissions until they are approved. Files you attach stay private to the family archive.</p>
           <div className="row"><button className="btn primary" onClick={submit} disabled={sending || (!text.trim() && !Object.values(fields).some((v) => v.trim()) && files.length === 0)}>{sending ? 'Sending…' : `Send to ${ownerName(scoped)}`}</button><button className="btn" onClick={() => setKind(null)}>Back</button></div>

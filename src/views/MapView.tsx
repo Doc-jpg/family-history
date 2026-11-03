@@ -15,6 +15,9 @@ export default function MapView() {
   const layerRef = useRef<L.LayerGroup | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [branch, setBranch] = useState<'all' | 'paternal' | 'maternal'>('all');
+  // Story mode: follow one person's placed events in date order, one stop at a time.
+  const [journeyId, setJourneyId] = useState('');
+  const [stop, setStop] = useState(0);
 
   const placed = useMemo(() => ds.events.filter((e) => e.placeId && ds.places.find((p) => p.id === e.placeId)?.lat != null), [ds]);
   const years = placed.map((e) => e.date?.year).filter((y): y is number => !!y);
@@ -65,6 +68,18 @@ export default function MapView() {
   }, [ds, placed, year, branch]);
 
   const unplaced = ds.events.filter((e) => e.placeId && ds.places.find((p) => p.id === e.placeId)?.lat == null);
+  const journeys = ds.people.filter((p) => !p.placeholder && placed.filter((e) => e.personIds.includes(p.id) && e.date?.year).length >= 2);
+  const journey = journeyId ? placed.filter((e) => e.personIds.includes(journeyId) && e.date?.year).sort((a, b) => a.date!.year! - b.date!.year!) : [];
+  const traveler = ds.people.find((p) => p.id === journeyId);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !journey.length) return;
+    const e = journey[Math.min(stop, journey.length - 1)];
+    const pl = ds.places.find((x) => x.id === e.placeId)!;
+    map.flyTo([pl.lat!, pl.lng!], 7, { duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1.2 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journeyId, stop]);
+  const current = journey.length ? journey[Math.min(stop, journey.length - 1)] : null;
   return (
     <main className="page wide">
       <div className="viz">
@@ -80,10 +95,29 @@ export default function MapView() {
               {year && <button className="btn small" onClick={() => setYear(null)}>all</button>}
             </label>
           </div>
-          <div className="panel muted" style={{ fontSize: '0.85rem' }}>
-            {placed.length} placed event{placed.length === 1 ? '' : 's'}. Solid = verified, faded/dashed = not yet verified.{unplaced.length ? ` ${unplaced.length} event(s) have a place with no coordinates yet.` : ''}
+          <div className="panel row">
+            <select value={journeyId} onChange={(e) => { setJourneyId(e.target.value); setStop(0); }} aria-label="Follow a journey">
+              <option value="">Follow a journey…</option>
+              {journeys.map((p) => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
+            </select>
+            {journey.length > 0 && <>
+              <button className="btn small" onClick={() => setStop((s) => Math.max(0, s - 1))} disabled={stop === 0}>Back</button>
+              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.min(stop, journey.length - 1) + 1} / {journey.length}</strong>
+              <button className="btn small primary" onClick={() => setStop((s) => Math.min(journey.length - 1, s + 1))} disabled={stop >= journey.length - 1}>Next</button>
+              <button className="btn small ghost" onClick={() => setJourneyId('')}>Done</button>
+            </>}
+          </div>
+          <div className="panel hint">
+            {placed.length} placed event{placed.length === 1 ? '' : 's'}. Solid = verified, faded or dashed = not yet verified.{unplaced.length ? ` ${unplaced.length} with a place but no map point yet.` : ''}
           </div>
         </div>
+        {current && traveler && (
+          <div className="card raised" style={{ position: 'absolute', left: 14, right: 14, bottom: 14, zIndex: 1000, maxWidth: 520, margin: '0 auto' }}>
+            <div className="row" style={{ justifyContent: 'space-between' }}><strong>{displayName(traveler)}</strong><span className="pill">{current.date?.year}</span></div>
+            <p style={{ margin: '4px 0 0' }}><strong style={{ textTransform: 'capitalize' }}>{current.type}</strong> in {ds.places.find((x) => x.id === current.placeId)?.name}{current.description ? `. ${current.description}` : ''}</p>
+            <p className="muted" style={{ margin: '4px 0 0', fontSize: '0.85rem' }}>{current.confidence}{current.sourceIds.length ? ', sourced' : ', no source yet'}{stop >= journey.length - 1 ? '. End of what the record shows.' : ''}</p>
+          </div>
+        )}
       </div>
     </main>
   );

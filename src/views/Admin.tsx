@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { NavLink, Route, Routes, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/store';
+import { waitingCounts } from '../model/activity';
 import PersonEditor from '../components/PersonEditor';
 import InviteManager from '../components/InviteManager';
 import Inbox from '../components/Inbox';
@@ -23,9 +24,11 @@ export default function Admin() {
   const tabs = [['people', 'People'], ['invites', 'Invitations'], ['inbox', `Inbox${ds.contributions.filter((c) => c.status === 'new').length ? ` (${ds.contributions.filter((c) => c.status === 'new').length})` : ''}`], ['requests', `Requests${ds.accessRequests.filter((r) => r.status === 'new').length ? ` (${ds.accessRequests.filter((r) => r.status === 'new').length})` : ''}`], ['research', 'Research'], ['audit', 'Audit'], ['data', 'Export & backup'], ['settings', 'Settings']];
   return (
     <main className="page">
-      <h1>Admin</h1>
-      <p className="muted">You are the final authority on the record. Relatives propose; you decide. {mode === 'local' ? 'Local draft: this device only.' : 'Signed in to the family database.'}</p>
-      <nav className="tabs">{tabs.map(([k, l]) => <NavLink key={k} to={`/admin/${k}`} className={({ isActive }) => (isActive ? 'active' : '')} style={{ textDecoration: 'none', padding: '10px 14px', fontWeight: 600 }}>{l}</NavLink>)}</nav>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
+        <div><h1 style={{ marginBottom: 2 }}>Admin</h1><p className="muted" style={{ margin: 0 }}>Relatives propose; you decide. {mode === 'local' ? 'Local draft: this device only.' : 'Signed in to the family database.'}</p></div>
+      </div>
+      <AdminAttention />
+      <nav className="tabs" aria-label="Admin sections">{tabs.map(([k, l]) => <NavLink key={k} to={`/admin/${k}`} className={({ isActive }) => (isActive ? 'active' : '')}>{l}</NavLink>)}</nav>
       <Routes>
         <Route index element={<People />} />
         <Route path="people" element={<People />} />
@@ -39,6 +42,21 @@ export default function Admin() {
       </Routes>
     </main>
   );
+}
+
+/** What needs the admin's attention right now, one glance. */
+function AdminAttention() {
+  const { ds } = useStore();
+  const w = waitingCounts(ds);
+  const items: { n: number; label: string; to: string; hot: boolean }[] = [
+    { n: w.inbox, label: 'submissions to review', to: '/admin/inbox', hot: w.inbox > 0 },
+    { n: w.disputes, label: 'records under question', to: '/admin/inbox', hot: w.disputes > 0 },
+    { n: w.requests, label: 'people asking for a link', to: '/admin/requests', hot: w.requests > 0 },
+    { n: w.unopened, label: 'links not opened yet', to: '/admin/invites', hot: false },
+    { n: ds.questions.filter((q) => q.status === 'open').length, label: 'open research questions', to: '/admin/research', hot: false },
+    { n: ds.people.filter((p) => p.placeholder).length, label: 'slots with no name', to: '/admin/people', hot: false },
+  ];
+  return <div className="attention">{items.map((i) => <Link key={i.label} to={i.to} className={i.hot ? 'hot' : ''}><strong>{i.n}</strong><span>{i.label}</span></Link>)}</div>;
 }
 
 function People() {
