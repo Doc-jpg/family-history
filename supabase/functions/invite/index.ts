@@ -11,7 +11,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import type { Contribution, Dataset, Media } from '../../../src/model/types.ts';
 import { bindDevice, probeInvitation, publicInvitation, redact, redeemInvitation, sessionStillValid, sha256Hex, submitAccessRequest } from '../../../src/model/access.ts';
 import { audit, submitContribution } from '../../../src/model/review.ts';
-import { countWrongCode } from '../../../src/model/invite-api.ts';
+import { applyAttestation, countWrongCode } from '../../../src/model/invite-api.ts';
 import { newId } from '../../../src/model/graph.ts';
 
 const BUCKET = 'family-media';
@@ -129,6 +129,17 @@ Deno.serve(async (req) => {
         const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(m.storagePath, 60 * 60);
         if (error || !data) return json({ ok: false, reason: 'storage' }, 500);
         return json({ ok: true, url: data.signedUrl });
+      }
+      case 'attest': {
+        const pr = await probeInvitation(doc, token, deviceId);
+        if (!('invitation' in pr) || pr.state !== 'mine' || pr.invitation.role === 'viewer') return json({ ok: false, reason: 'not-allowed' }, 403);
+        const stance = body.stance === 'dispute' ? 'dispute' : body.stance === 'confirm' ? 'confirm' : null;
+        if (!stance || typeof body.personId !== 'string') return json({ ok: false, reason: 'bad-request' }, 400);
+        const inv = pr.invitation;
+        const note = body.note ? String(body.note).slice(0, 2000) : undefined;
+        const field = body.field ? String(body.field).slice(0, 40) : undefined;
+        await mutate(async (d) => applyAttestation(d, inv, String(body.personId), stance, note, field));
+        return json({ ok: true });
       }
       default:
         return json({ ok: false, reason: 'unknown-action' }, 400);

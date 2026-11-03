@@ -3,11 +3,14 @@ import { useStore } from '../store/store';
 import { childrenOf, displayName, formatDate, parentsOf, partnersOf, siblingsOf } from '../model/graph';
 import { branchColor, ConfidencePill, PersonChip, lifespan } from '../components/PersonBits';
 import MediaItem from '../components/MediaItem';
+import { resolveDispute, standingOf } from '../model/standing';
+import { audit } from '../model/review';
 
 export default function PersonView() {
   const { id } = useParams();
-  const { ds } = useStore();
+  const { ds, update } = useStore();
   const p = ds.people.find((x) => x.id === id);
+  const standing = p ? standingOf(ds, p.id) : null;
   if (!p) return <main className="page empty">No such person.</main>;
   const events = ds.events.filter((e) => e.personIds.includes(p.id)).sort((a, b) => (a.date?.year ?? 0) - (b.date?.year ?? 0));
   const media = ds.media.filter((m) => m.personIds.includes(p.id));
@@ -83,6 +86,17 @@ export default function PersonView() {
           {(p.openQuestions ?? []).map((q) => <div key={q} className="question">{q}</div>)}
           {questions.map((q) => <div key={q.id} className="question">{q.title} <span className="pill">{q.priority}</span></div>)}
           {!(p.openQuestions?.length || questions.length) && <p className="muted">None.</p>}
+        </div>
+        <div className="card">
+          <h3>Pencil and pen</h3>
+          <p>{standing?.summary}</p>
+          {(ds.attestations ?? []).filter((a) => a.personId === p.id).sort((a, b) => b.at.localeCompare(a.at)).map((a) => (
+            <div key={a.id} className="row" style={{ justifyContent: 'space-between', borderTop: '1px solid var(--line)', padding: '6px 0' }}>
+              <span><strong>{a.byName}</strong> {a.stance === 'confirm' ? 'confirmed' : 'questioned'}{a.field ? ` (${a.field})` : ''}{a.note ? `: ${a.note}` : ''} <small className="muted">{new Date(a.at).toLocaleDateString()}{a.resolvedAt ? ` · settled: ${a.resolution}` : ''}</small></span>
+              {a.stance === 'dispute' && !a.resolvedAt && <button className="btn small" onClick={() => { const r = prompt('How was this settled? (kept for the record)'); if (r) update((d) => audit(resolveDispute(d, a.id, r), { actor: 'admin', action: 'resolve-dispute', entity: 'person', entityId: p.id, after: r })); }}>Mark settled</button>}
+            </div>
+          ))}
+          {!(ds.attestations ?? []).some((a) => a.personId === p.id) && <p className="muted">No relative has confirmed or questioned this record yet.</p>}
         </div>
         <div className="card">
           <h3>Contributions about this person</h3>

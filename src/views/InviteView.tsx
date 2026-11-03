@@ -10,6 +10,8 @@ import TreeView from './TreeView';
 import { ConfidencePill, PersonChip, lifespan } from '../components/PersonBits';
 import { gapsFor, relativesOf, type Gap } from '../model/perspective';
 import MediaItem from '../components/MediaItem';
+import StandingCard, { StandingPill } from '../components/StandingCard';
+import { needsConfirmation } from '../model/standing';
 
 // What a relative sees. The token comes from their personal link; the code from the admin by
 // another channel. The first device that unlocks the link owns it: the link stops working for
@@ -151,6 +153,7 @@ export default function InviteView() {
   const me = inv.personId ? scoped.people.find((p) => p.id === inv.personId) ?? null : null;
   const groups = me ? relativesOf(scoped, me.id) : [];
   const gaps: Gap[] = me ? gapsFor(scoped, me.id) : [];
+  const toConfirm = me && can.contribute ? needsConfirmation(scoped, scoped.people.filter((p) => groups.some((g) => g.entries.some((e) => e.person.id === p.id && e.distance <= 3))), inv.id) : [];
 
   if (showRequest && !requested) {
     return <main className="page invite" style={{ maxWidth: 560 }}><RequestAccess reason="You are viewing a link that was shared with someone else, so this device can look but not add." owner={owner} onSubmit={async (r) => { await api.requestAccess(token, deviceId, r); setRequested(true); setShowRequest(false); }} /></main>;
@@ -173,7 +176,7 @@ export default function InviteView() {
       <nav className="tabs">
         <button className={tab === 'people' ? 'active' : ''} onClick={() => { setTab('people'); setPersonId(null); }}>{me ? 'Your people' : 'People'}</button>
         <button className={tab === 'tree' ? 'active' : ''} onClick={() => setTab('tree')}>Tree</button>
-        {me && can.contribute && gaps.length > 0 && <button className={tab === 'blanks' ? 'active' : ''} onClick={() => { setTab('blanks'); setPersonId(null); }}>Fill in the blanks ({gaps.length})</button>}
+        {me && can.contribute && (gaps.length > 0 || toConfirm.length > 0) && <button className={tab === 'blanks' ? 'active' : ''} onClick={() => { setTab('blanks'); setPersonId(null); }}>Fill in the blanks ({gaps.length + toConfirm.length})</button>}
       </nav>
       {tab === 'tree' && (
         <>
@@ -188,6 +191,19 @@ export default function InviteView() {
       )}
       {tab === 'blanks' && me && (
         <div className="stack">
+          {toConfirm.length > 0 && (
+            <>
+              <h3 style={{ margin: '4px 0 0' }}>Does this look right?</h3>
+              <p className="muted">These were told to us by one person and nobody else has checked them yet. A second pair of eyes turns pencil into pen.</p>
+              {toConfirm.map(({ person: p, detail }) => (
+                <div className="gap" key={'c-' + p.id}>
+                  <span><strong>{displayName(p)}</strong> <StandingPill ds={scoped} personId={p.id} /><br /><span className="rel-label">{detail.summary}</span></span>
+                  <button className="btn primary small" onClick={() => { setPersonId(p.id); setTab('people'); }}>Check</button>
+                </div>
+              ))}
+              <h3 style={{ margin: '12px 0 0' }}>Blanks you might fill</h3>
+            </>
+          )}
           <p className="muted">These are the things nobody has written down yet about your side of the family. Pick any one; a few words is plenty, and "I don't know" is a fine answer too.</p>
           {gaps.map((g) => (
             <div className="gap" key={g.id}>
@@ -208,7 +224,7 @@ export default function InviteView() {
               {groups.map((g) => (
                 <div className="card" key={g.title}>
                   <h3>{g.title}</h3>
-                  <div className="stack">{g.entries.map((e) => <button key={e.person.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(e.person.id)}><PersonChip ds={scoped} p={e.person} to={false} /><span className="rel-label" style={{ display: 'block', fontWeight: 400 }}>{e.label.startsWith('connection') ? e.label : `your ${e.label}`}</span></button>)}</div>
+                  <div className="stack">{g.entries.map((e) => <button key={e.person.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(e.person.id)}><PersonChip ds={scoped} p={e.person} to={false} /> <StandingPill ds={scoped} personId={e.person.id} /><span className="rel-label" style={{ display: 'block', fontWeight: 400 }}>{e.label.startsWith('connection') ? e.label : `your ${e.label}`}</span></button>)}</div>
                 </div>
               ))}
             </>
@@ -343,6 +359,7 @@ function Contribute({ scoped, person, meId, inv, canContribute, startKind, onBac
           {personMedia.length > 0 && <div className="stack" style={{ marginTop: 10 }}>{personMedia.map((m) => <MediaItem key={m.id} m={m} resolve={(x) => api.mediaUrl(token, deviceId, x)} />)}</div>}
         </div>
       )}
+      {person && <StandingCard ds={scoped} person={person} myId={inv.id} canAttest={canContribute} onAttest={async (stance, note, field) => { const r = await api.attest(token, deviceId, person.id, stance, note, field); if (r.ok) await onSubmitted(); return r.ok; }} />}
       {sent && <div className="banner" style={{ borderColor: 'var(--ok)' }}>Thank you. It is in {ownerName(scoped)}'s review inbox. You can add more.</div>}
       {!canContribute && <div className="card"><h3>Know something about {person ? person.givenNames.split(' ')[0] : 'the family'}?</h3><p className="muted">Adding memories, corrections and photos needs contributor access, which is personal to each family member.</p><button className="btn primary" onClick={onRequest}>Request access to contribute</button></div>}
       {canContribute && !kind && (

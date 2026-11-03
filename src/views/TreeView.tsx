@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { standingOf } from '../model/standing';
 import * as d3 from 'd3';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/store';
@@ -85,7 +86,7 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
       .attr('d', (d) => `M${d.s.x},${d.s.y}C${d.s.x},${(d.s.y + d.t.y) / 2} ${d.t.x},${(d.s.y + d.t.y) / 2} ${d.t.x},${d.t.y}`);
 
     const node = g.append('g').selectAll('g').data(nodes).join('g')
-      .attr('class', (d) => `node${d.data.p.placeholder ? ' placeholder' : ''}${d.data.p.living === 'no' ? ' deceased' : ''}`)
+      .attr('class', (d) => { const st = standingOf(ds, d.data.p.id).standing; return `node${d.data.p.placeholder ? ' placeholder' : ''}${d.data.p.living === 'no' ? ' deceased' : ''}${st === 'pencil' ? ' pencil' : st === 'disputed' ? ' disputed' : ''}`; })
       .attr('transform', (d) => `translate(${d.x},${d.y})`)
       .style('cursor', 'pointer')
       .on('click', (ev: MouseEvent, d) => {
@@ -150,7 +151,7 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
             <span><i className="sw" style={{ background: 'var(--maternal)' }} />Maternal</span>
             <span><i className="sw" style={{ background: 'var(--self)' }} />You</span>
             <span><i className="sw" style={{ background: 'var(--household)' }} />Household</span>
-            <span className="muted">dashed ring = slot · dashed line = unverified · ✝ deceased</span>
+            <span className="muted">dashed ring = slot · dotted ring = pencil (one voice) · red = under question · dashed line = unverified</span>
           </div>
           <div className="panel muted" style={{ fontSize: '0.85rem' }}>
             Click a person for details. Shift-click two people to highlight how they connect.{pathEnds.length === 2 && <> <strong>{howRelated(ds, pathEnds[0], pathEnds[1]).label}</strong> <button className="btn small" onClick={() => setPathEnds([])}>clear</button></>}

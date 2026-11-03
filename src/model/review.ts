@@ -1,5 +1,6 @@
 import type { AuditEntry, Contribution, ContributionStatus, Dataset, Person } from './types';
 import { newId } from './graph';
+import { attest } from './standing';
 
 export const REVIEW_ACTIONS: { status: ContributionStatus; label: string; help: string }[] = [
   { status: 'approved', label: 'Approve', help: 'Accept it into the family record.' },
@@ -24,7 +25,11 @@ export function reviewContribution(ds: Dataset, contributionId: string, status: 
     reviewNotes: note ?? c.reviewNotes,
     history: [...c.history, { at: new Date().toISOString(), by, action: status, note }],
   };
-  const next = { ...ds, contributions: ds.contributions.map((x) => (x.id === contributionId ? updated : x)) };
+  let next: Dataset = { ...ds, contributions: ds.contributions.map((x) => (x.id === contributionId ? updated : x)) };
+  // Pencil and pen: an accepted submission about a person counts as that relative's confirmation of the person's record.
+  if ((status === 'approved' || status === 'partial') && c.subject.type === 'person' && c.subject.id && c.kind !== 'dispute') {
+    next = attest(next, { personId: c.subject.id, by: c.invitationId, byName: c.contributorName, stance: 'confirm', note: `from an accepted ${c.kind} submission` });
+  }
   return audit(next, { actor: by, action: `review:${status}`, entity: 'contribution', entityId: contributionId, before: c.status, after: status });
 }
 

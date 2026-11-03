@@ -227,8 +227,32 @@ export interface AuditEntry {
   after?: unknown;
 }
 
+/**
+ * Pencil and pen. A fact told by one relative is "pencil"; a second, different relative
+ * confirming it makes it "pen"; a dispute drops it back to pencil until confirmations
+ * outnumber disputes by two or the admin settles it. A documented record (a certificate,
+ * census, obituary) is pen on its own and a dispute against it is a research flag, not a
+ * reversal. Attestations are kept per person (optionally per field) and the standing is
+ * computed, never stored, so the rules can change without touching the data.
+ */
+export interface Attestation {
+  id: string;
+  personId: string;
+  field?: string; // 'name' | 'birth' | 'death' | 'parents' | 'spouse' | 'children' | 'general'
+  by: string; // invitation id, or 'admin'
+  byName: string;
+  stance: 'confirm' | 'dispute';
+  note?: string;
+  at: string;
+  resolvedAt?: string; // a dispute the admin settled (kept for the record, no longer counted)
+  resolution?: string;
+}
+
+export type Standing = 'documented' | 'pen' | 'pencil' | 'disputed' | 'unattested';
+
 export interface Dataset {
   schemaVersion: 1;
+  attestations?: Attestation[];
   people: Person[];
   relationships: Relationship[];
   events: LifeEvent[];

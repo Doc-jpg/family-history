@@ -45,7 +45,7 @@ export function relativesOf(ds: Dataset, meId: string): RelativeGroup[] {
 export interface Gap { id: string; personId: string; personName: string; question: string; kind: ContributionKind; priority: number }
 
 /** The blanks on this person's own side of the family that they are best placed to fill. Closest people first; at most `limit`. */
-export function gapsFor(ds: Dataset, meId: string, limit = 12): Gap[] {
+export function gapsFor(ds: Dataset, meId: string, limit = 24): Gap[] {
   const me = ds.people.find((p) => p.id === meId);
   if (!me) return [];
   const up = ancestorDistances(ds, meId);
@@ -59,7 +59,7 @@ export function gapsFor(ds: Dataset, meId: string, limit = 12): Gap[] {
     const ev = ds.events.filter((e) => e.personIds.includes(p.id));
     switch (k) {
       case 'parents': return parentsOf(ds, p.id).filter((x) => !x.placeholder).length >= 2;
-      case 'birth': { const b = ev.find((e) => e.type === 'birth'); return !!(b && b.date?.year && b.placeId); }
+      case 'birth': { const b = ev.find((e) => e.type === 'birth'); return !!(b && b.date?.year); }
       case 'death': return ev.some((e) => e.type === 'death');
       case 'residence': return ev.some((e) => e.type === 'residence');
       case 'occupation': return ev.some((e) => e.type === 'occupation');
@@ -85,5 +85,27 @@ export function gapsFor(ds: Dataset, meId: string, limit = 12): Gap[] {
     if (!has(p, 'photo')) add('photo', id === meId ? 'Do you have a photo of yourself you would like in the archive?' : `Do you have a photo of ${first(p)}?`, 'upload', 8);
   }
   if (parentsOf(ds, meId).some((x) => !x.placeholder)) gaps.push({ id: 'g-siblings', personId: meId, personName: displayName(me), question: 'Are all of your brothers and sisters in the tree? Who is missing?', kind: 'missing-person', priority: 9 });
+
+  // One or two steps out (brothers and sisters, children, nieces and nephews, aunts and uncles): the
+  // people a relative knows well but the record often has only a first name for.
+  const mineSet = new Set(mine);
+  for (const p of ds.people) {
+    if (p.placeholder || mineSet.has(p.id)) continue;
+    const r = howRelated(ds, p.id, meId);
+    if (!r.path.length || r.label.includes('in-law') || r.label === 'spouse' || r.label === 'partner') continue;
+    const steps = r.path.length - 1;
+    if (steps > 3) continue;
+    const base = 30 + steps * 10;
+    const who = p.givenNames.split(' ')[0];
+    const rel = `your ${r.label}`;
+    const add = (key: string, question: string, kind: ContributionKind, prio: number) => gaps.push({ id: `g-${key}-${p.id}`, personId: p.id, personName: `${displayName(p)} (${rel})`, question, kind, priority: base + prio });
+    if (!p.surname) add('name', `What is ${who}'s full name${p.sex === 'F' ? ' (maiden and married)' : ''}?`, 'correction', 1);
+    else if (p.sex === 'F' && !has(p, 'maidenName') && partnersOf(ds, p.id).length) add('maiden', `What was ${who}'s maiden name?`, 'correction', 2);
+    if (!has(p, 'birth')) add('birth', `When was ${who} born?`, 'correction', 3);
+    if (p.living === 'no' && !has(p, 'death')) add('death', `When did ${who} die?`, 'correction', 3);
+    if (steps <= 2 && !partnersOf(ds, p.id).length && p.generation <= 0 + (me.generation)) add('spouse', `Is ${who} married or partnered? To whom?`, 'missing-person', 4);
+    if (steps <= 2 && /sister|brother|sibling|son|daughter|child/.test(r.label) && !ds.relationships.some((x) => x.type === 'parent-child' && x.fromId === p.id)) add('kids', `Does ${who} have children we have not listed?`, 'missing-person', 5);
+    if (!has(p, 'residence')) add('res', `Where does ${who} live${p.living === 'no' ? ' (or where did they)' : ''}?`, 'location', 6);
+  }
   return gaps.sort((a, b) => a.priority - b.priority).slice(0, limit);
 }

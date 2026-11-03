@@ -35,14 +35,29 @@ function redact(ds, scope) {
     return true;
   }).map((e) => ({ ...e, personIds: e.personIds.filter((id) => ids.has(id)) }));
   const placeIds = new Set(events.map((e) => e.placeId).filter(Boolean));
+  const recordedFor = (p) => {
+    const ev = ds.events.filter((e) => e.personIds.includes(p.id));
+    const out = [];
+    if (ds.relationships.filter((r) => r.type === "parent-child" && r.toId === p.id).map((r) => ds.people.find((x) => x.id === r.fromId)).filter((x) => x && !x.placeholder).length >= 2) out.push("parents");
+    const birth = ev.find((e) => e.type === "birth");
+    if (birth && birth.date?.year) out.push("birth");
+    if (ev.some((e) => e.type === "death")) out.push("death");
+    if (ev.some((e) => e.type === "residence")) out.push("residence");
+    if (ev.some((e) => e.type === "occupation")) out.push("occupation");
+    if (ds.media.some((m) => m.kind === "photo" && m.personIds.includes(p.id))) out.push("photo");
+    if (p.bio) out.push("bio");
+    if (p.maidenName) out.push("maidenName");
+    return out;
+  };
   return {
     ...ds,
-    people: people.map((p) => ({ ...p, notes: void 0, openQuestions: void 0 })),
+    people: people.map((p) => ({ ...p, notes: void 0, openQuestions: void 0, recorded: recordedFor(p) })),
     relationships: ds.relationships.filter((r) => ids.has(r.fromId) && ids.has(r.toId)),
     events,
     places: ds.places.filter((pl) => placeIds.has(pl.id)),
     media: ds.media.filter((m) => m.privacy !== "private" && m.personIds.some((id) => ids.has(id))),
     sources: ds.sources,
+    attestations: (ds.attestations ?? []).filter((a) => ids.has(a.personId)),
     questions: [],
     invitations: [],
     contributions: [],
@@ -108,6 +123,14 @@ function submitAccessRequest(ds, r) {
   return { ds: { ...ds, accessRequests: [request, ...ds.accessRequests] }, request };
 }
 
+// src/model/standing.ts
+function attest(ds, input) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const kept = (ds.attestations ?? []).filter((a2) => !(a2.personId === input.personId && a2.by === input.by && (a2.field ?? "general") === (input.field ?? "general") && !a2.resolvedAt));
+  const a = { id: newId("att"), personId: input.personId, field: input.field, by: input.by, byName: input.byName, stance: input.stance, note: input.note, at: now };
+  return { ...ds, attestations: [...kept, a] };
+}
+
 // src/model/review.ts
 function audit(ds, entry) {
   return { ...ds, audit: [{ id: newId("a"), at: (/* @__PURE__ */ new Date()).toISOString(), ...entry }, ...ds.audit] };
@@ -125,6 +148,16 @@ function submitContribution(ds, c) {
 }
 
 // src/model/invite-api.ts
+function applyAttestation(ds, inv, personId, stance, note, field) {
+  const person = ds.people.find((p) => p.id === personId);
+  if (!person || person.placeholder) return ds;
+  let next = attest(ds, { personId, by: inv.id, byName: inv.recipientName, stance, note, field });
+  next = audit(next, { actor: inv.recipientName, action: stance === "confirm" ? "confirmed" : "disputed", entity: "person", entityId: personId, after: note });
+  if (stance === "dispute") {
+    next = submitContribution(next, { invitationId: inv.id, contributorName: inv.recipientName, contributorIdentity: inv.verifiedIdentity, kind: "dispute", subject: { type: "person", id: personId, label: `${person.givenNames} ${person.surname}`.trim() }, proposal: note || "Something here is wrong (no details given).", fields: field ? { field } : {}, attachmentMediaIds: [] }).ds;
+  }
+  return next;
+}
 async function countWrongCode(ds, rawToken) {
   const h = await sha256Hex(rawToken);
   return { ...ds, invitations: ds.invitations.map((i) => i.tokenHash === h ? { ...i, codeAttempts: (i.codeAttempts ?? 0) + 1 } : i) };
@@ -242,6 +275,17 @@ Deno.serve(async (req) => {
         const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(m.storagePath, 60 * 60);
         if (error || !data) return json({ ok: false, reason: "storage" }, 500);
         return json({ ok: true, url: data.signedUrl });
+      }
+      case "attest": {
+        const pr = await probeInvitation(doc, token, deviceId);
+        if (!("invitation" in pr) || pr.state !== "mine" || pr.invitation.role === "viewer") return json({ ok: false, reason: "not-allowed" }, 403);
+        const stance = body.stance === "dispute" ? "dispute" : body.stance === "confirm" ? "confirm" : null;
+        if (!stance || typeof body.personId !== "string") return json({ ok: false, reason: "bad-request" }, 400);
+        const inv = pr.invitation;
+        const note = body.note ? String(body.note).slice(0, 2e3) : void 0;
+        const field = body.field ? String(body.field).slice(0, 40) : void 0;
+        await mutate(async (d) => applyAttestation(d, inv, String(body.personId), stance, note, field));
+        return json({ ok: true });
       }
       default:
         return json({ ok: false, reason: "unknown-action" }, 400);

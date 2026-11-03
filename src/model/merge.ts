@@ -1,4 +1,4 @@
-import type { Dataset, Invitation } from './types';
+import type { Attestation, Dataset, Invitation } from './types';
 
 // In cloud mode two parties change the one family document:
 //   - the admin, from the app, who holds a full copy in memory and saves it whole;
@@ -33,8 +33,23 @@ export function mergeServerChanges(local: Dataset, server: Dataset): Dataset {
     contributions: sortNewest(unionById(local.contributions, server.contributions), 'submittedAt'),
     accessRequests: sortNewest(unionById(local.accessRequests ?? [], server.accessRequests ?? []), 'submittedAt'),
     media: unionById(local.media, server.media),
+    attestations: mergeAttestations(local.attestations ?? [], server.attestations ?? []),
     audit: sortNewest(unionById(local.audit, server.audit), 'at'),
   };
+}
+
+/** Union by id; where both sides hold the same id the admin's wins (resolutions live there); a newer server stance by the same attester replaces an older local one. */
+function mergeAttestations(mine: Attestation[], theirs: Attestation[]): Attestation[] {
+  const out = new Map(mine.map((a) => [a.id, a]));
+  for (const a of theirs) if (!out.has(a.id)) out.set(a.id, a);
+  // Keep only the latest unresolved stance per (person, field, by); resolved ones are kept as history.
+  const latest = new Map<string, Attestation>();
+  const resolved: Attestation[] = [];
+  for (const a of [...out.values()].sort((x, y) => x.at.localeCompare(y.at))) {
+    if (a.resolvedAt) { resolved.push(a); continue; }
+    latest.set(`${a.personId}|${a.field ?? 'general'}|${a.by}`, a);
+  }
+  return [...resolved, ...latest.values()];
 }
 
 function mergeInvitation(mine: Invitation, theirs: Invitation): Invitation {

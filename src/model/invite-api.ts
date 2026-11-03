@@ -1,6 +1,7 @@
 import type { AccessRequest, Contribution, Dataset, Invitation, Media } from './types';
 import { bindDevice, probeInvitation, publicInvitation, redact, redeemInvitation, sessionStillValid, sha256Hex, submitAccessRequest, type ProbeResult, type RedeemResult } from './access';
 import { audit, submitContribution } from './review';
+import { attest } from './standing';
 import { newId } from './graph';
 
 // Everything a relative's browser may do, behind one interface.
@@ -27,6 +28,20 @@ export interface InviteApi {
   upload(token: string, deviceId: string, file: Blob, name: string, kind: Media['kind']): Promise<UploadedFile>;
   /** A URL the browser can load for a media record the relative is allowed to see. */
   mediaUrl(token: string, deviceId: string, m: Media): Promise<string | null>;
+  /** Pencil and pen: "looks right" or "something's off" about a person's record. A dispute also lands in the admin's inbox. */
+  attest(token: string, deviceId: string, personId: string, stance: 'confirm' | 'dispute', note?: string, field?: string): Promise<{ ok: boolean }>;
+}
+
+/** Shared by local mode and the edge function: record the stance and, for a dispute, a contribution for the inbox. */
+export function applyAttestation(ds: Dataset, inv: Invitation, personId: string, stance: 'confirm' | 'dispute', note?: string, field?: string): Dataset {
+  const person = ds.people.find((p) => p.id === personId);
+  if (!person || person.placeholder) return ds;
+  let next = attest(ds, { personId, by: inv.id, byName: inv.recipientName, stance, note, field });
+  next = audit(next, { actor: inv.recipientName, action: stance === 'confirm' ? 'confirmed' : 'disputed', entity: 'person', entityId: personId, after: note });
+  if (stance === 'dispute') {
+    next = submitContribution(next, { invitationId: inv.id, contributorName: inv.recipientName, contributorIdentity: inv.verifiedIdentity, kind: 'dispute', subject: { type: 'person', id: personId, label: `${person.givenNames} ${person.surname}`.trim() }, proposal: note || 'Something here is wrong (no details given).', fields: field ? { field } : {}, attachmentMediaIds: [] }).ds;
+  }
+  return next;
 }
 
 /** One more wrong code against the invitation behind this token. Shared by local mode and the edge function. */
@@ -92,6 +107,13 @@ export function localInviteApi(get: () => Dataset, update: (fn: (d: Dataset) => 
       }
       return null;
     },
+    async attest(token, deviceId, personId, stance, note, field) {
+      const ds = get();
+      const pr = await probeInvitation(ds, token, deviceId);
+      if (!('invitation' in pr) || pr.state !== 'mine' || pr.invitation.role === 'viewer') return { ok: false };
+      update((d) => applyAttestation(d, pr.invitation, personId, stance, note, field));
+      return { ok: true };
+    },
   };
 }
 
@@ -114,5 +136,6 @@ export function cloudInviteApi(call: (body: Record<string, unknown>) => Promise<
       const r = (await call({ action: 'media-url', token, deviceId, mediaId: m.id })) as { ok: boolean; url?: string };
       return r.ok && r.url ? r.url : null;
     },
+    attest: (token, deviceId, personId, stance, note, field) => call({ action: 'attest', token, deviceId, personId, stance, note, field }) as Promise<{ ok: boolean }>,
   };
 }

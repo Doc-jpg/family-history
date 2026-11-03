@@ -39,7 +39,7 @@ export function redact(ds: Dataset, scope: AccessScope): Dataset {
     const out: NonNullable<Person['recorded']> = [];
     if (ds.relationships.filter((r) => r.type === 'parent-child' && r.toId === p.id).map((r) => ds.people.find((x) => x.id === r.fromId)).filter((x) => x && !x.placeholder).length >= 2) out.push('parents');
     const birth = ev.find((e) => e.type === 'birth');
-    if (birth && birth.date?.year && birth.placeId) out.push('birth');
+    if (birth && birth.date?.year) out.push('birth');
     if (ev.some((e) => e.type === 'death')) out.push('death');
     if (ev.some((e) => e.type === 'residence')) out.push('residence');
     if (ev.some((e) => e.type === 'occupation')) out.push('occupation');
@@ -56,6 +56,7 @@ export function redact(ds: Dataset, scope: AccessScope): Dataset {
     places: ds.places.filter((pl) => placeIds.has(pl.id)),
     media: ds.media.filter((m) => m.privacy !== 'private' && m.personIds.some((id) => ids.has(id))),
     sources: ds.sources,
+    attestations: (ds.attestations ?? []).filter((a) => ids.has(a.personId)),
     questions: [],
     invitations: [],
     contributions: [],

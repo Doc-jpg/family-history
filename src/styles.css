@@ -129,6 +129,8 @@ table.list th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.
 .node circle.ring { fill: var(--paper); stroke-width: 3; }
 .node.placeholder circle.ring { stroke-dasharray: 4 3; }
 .node.deceased circle.ring { stroke-dasharray: none; }
+.node.pencil circle.ring { stroke-dasharray: 2 3; }
+.node.disputed circle.ring { stroke: var(--bad); stroke-dasharray: 2 3; }
 .link { fill: none; stroke: var(--line); stroke-width: 1.5; }
 .link.unverified { stroke-dasharray: 5 4; }
 .link.disputed { stroke: var(--bad); stroke-dasharray: 2 3; }
