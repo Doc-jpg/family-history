@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useStore } from '../store/store';
 import { ROLE_CAN, describeDevice, getDeviceId, type ProbeResult } from '../model/access';
-import { childrenOf, displayName, formatDate, parentsOf, partnersOf } from '../model/graph';
+import { childrenOf, displayName, formatDate, howRelated, parentsOf, partnersOf } from '../model/graph';
 import type { ContributionKind, Dataset, Invitation, Media, Person } from '../model/types';
 import { ACCEPT, MAX_FILE_BYTES, kindOf, startRecording } from '../store/media';
 import type { AccessRequestInput, ContributionInput, InviteApi, UploadedFile } from '../model/invite-api';
 import TreeView from './TreeView';
 import { ConfidencePill, PersonChip, lifespan } from '../components/PersonBits';
+import { gapsFor, relativesOf, type Gap } from '../model/perspective';
 import MediaItem from '../components/MediaItem';
 
 // What a relative sees. The token comes from their personal link; the code from the admin by
@@ -54,7 +55,8 @@ export default function InviteView() {
   const owner = ownerName(scoped ?? ds);
   const [mode, setMode] = useState<'full' | 'view'>('view');
   const [personId, setPersonId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'people' | 'tree'>('people');
+  const [tab, setTab] = useState<'people' | 'tree' | 'blanks'>('people');
+  const [startKind, setStartKind] = useState<ContributionKind | null>(null);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [showRequest, setShowRequest] = useState(false);
   const [requested, setRequested] = useState(false);
@@ -111,7 +113,7 @@ export default function InviteView() {
     const elsewhere = probe?.state === 'elsewhere' ? probe.invitation : null;
     const fw = elsewhere ? elsewhere.forwarded ?? 'view' : 'view';
     return (
-      <main className="page" style={{ maxWidth: 560 }}>
+      <main className="page invite" style={{ maxWidth: 560 }}>
         {requested ? (
           <div className="card" style={{ marginTop: 40 }}><h1>Request sent</h1><p>{owner} will see your request and, if it is granted, send you a link and code of your own.</p></div>
         ) : showRequest || (elsewhere && fw === 'refuse') ? (
@@ -146,13 +148,16 @@ export default function InviteView() {
   const can = mode === 'full' ? ROLE_CAN[inv.role] : ROLE_CAN.viewer;
   const person = personId ? scoped.people.find((p) => p.id === personId) : null;
   const gens = [...new Set(scoped.people.map((p) => p.generation))].sort((a, b) => b - a);
+  const me = inv.personId ? scoped.people.find((p) => p.id === inv.personId) ?? null : null;
+  const groups = me ? relativesOf(scoped, me.id) : [];
+  const gaps: Gap[] = me ? gapsFor(scoped, me.id) : [];
 
   if (showRequest && !requested) {
-    return <main className="page" style={{ maxWidth: 560 }}><RequestAccess reason="You are viewing a link that was shared with someone else, so this device can look but not add." owner={owner} onSubmit={async (r) => { await api.requestAccess(token, deviceId, r); setRequested(true); setShowRequest(false); }} /></main>;
+    return <main className="page invite" style={{ maxWidth: 560 }}><RequestAccess reason="You are viewing a link that was shared with someone else, so this device can look but not add." owner={owner} onSubmit={async (r) => { await api.requestAccess(token, deviceId, r); setRequested(true); setShowRequest(false); }} /></main>;
   }
 
   return (
-    <main className="page">
+    <main className="page invite">
       {requested && <div className="banner" style={{ borderColor: 'var(--ok)' }}>Your request for contributor access is with {owner}.</div>}
       {mode === 'view' && !requested && (
         <div className="banner warn row" style={{ justifyContent: 'space-between' }}>
@@ -161,35 +166,63 @@ export default function InviteView() {
         </div>
       )}
       <section className="hero" style={{ paddingTop: 16 }}>
-        <h1>{mode === 'full' ? `Welcome, ${inv.recipientName}.` : 'The family, so far.'}</h1>
-        <p className="lede">Here is what we know so far about the family. {can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : mode === 'full' ? `You have been given a look-only link; if you would like to add memories, ask ${owner} for a contributor link.` : ''}</p>
-        <div className="row"><span className="pill">{mode === 'full' ? inv.role : 'view only'}</span><span className="pill">you can see: {inv.scope.branches.join(', ') || 'selected people'}</span></div>
+        <h1>{mode === 'full' ? `Welcome, ${inv.recipientName.split(' ')[0]}.` : 'The family, so far.'}</h1>
+        <p className="lede">{me ? `This is your family as we know it so far, seen from where you stand: your parents and grandparents, your children, your brothers and sisters. ` : 'Here is what we know so far about the family. '}{can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : mode === 'full' ? `You have been given a look-only link; if you would like to add memories, ask ${owner} for a contributor link.` : ''}</p>
+        <div className="row"><span className="pill">{mode === 'full' ? inv.role : 'view only'}</span>{me && <span className="pill">centered on you</span>}</div>
       </section>
-      <nav className="tabs"><button className={tab === 'people' ? 'active' : ''} onClick={() => setTab('people')}>People</button><button className={tab === 'tree' ? 'active' : ''} onClick={() => setTab('tree')}>Tree</button></nav>
+      <nav className="tabs">
+        <button className={tab === 'people' ? 'active' : ''} onClick={() => { setTab('people'); setPersonId(null); }}>{me ? 'Your people' : 'People'}</button>
+        <button className={tab === 'tree' ? 'active' : ''} onClick={() => setTab('tree')}>Tree</button>
+        {me && can.contribute && gaps.length > 0 && <button className={tab === 'blanks' ? 'active' : ''} onClick={() => { setTab('blanks'); setPersonId(null); }}>Fill in the blanks ({gaps.length})</button>}
+      </nav>
       {tab === 'tree' && (
         <>
-          {inv.personId && scoped.people.some((p) => p.id === inv.personId) && (
+          {me && (
             <div className="row" style={{ marginBottom: 8 }}>
               <button className={`btn small ${centerOnMe ? 'primary' : ''}`} onClick={() => setCenterOnMe(true)}>Center the tree on me</button>
               <button className={`btn small ${!centerOnMe ? 'primary' : ''}`} onClick={() => setCenterOnMe(false)}>Center on {owner}</button>
             </div>
           )}
-          <div style={{ height: '70vh', position: 'relative', border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}><TreeView data={scoped} rootId={centerOnMe && inv.personId ? inv.personId : undefined} onOpen={(id) => { setPersonId(id); setTab('people'); }} /></div>
+          <div style={{ height: '70vh', position: 'relative', border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}><TreeView data={scoped} rootId={centerOnMe && me ? me.id : undefined} onOpen={(id) => { setPersonId(id); setTab('people'); }} /></div>
         </>
       )}
-      {tab === 'people' && !person && (
+      {tab === 'blanks' && me && (
+        <div className="stack">
+          <p className="muted">These are the things nobody has written down yet about your side of the family. Pick any one; a few words is plenty, and "I don't know" is a fine answer too.</p>
+          {gaps.map((g) => (
+            <div className="gap" key={g.id}>
+              <span><strong>{g.question}</strong>{g.personId !== me.id && <><br /><span className="rel-label">{g.personName}</span></>}</span>
+              <button className="btn primary small" onClick={() => { setStartKind(g.kind); setPersonId(g.personId); setTab('people'); }}>Answer</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'people' && !person && personId !== '__branch' && (
         <div className="grid">
-          {gens.map((g) => (
+          {me ? (
+            <>
+              <div className="card" key="me">
+                <h3>You</h3>
+                <div className="stack"><button className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(me.id)}><PersonChip ds={scoped} p={me} to={false} /></button></div>
+              </div>
+              {groups.map((g) => (
+                <div className="card" key={g.title}>
+                  <h3>{g.title}</h3>
+                  <div className="stack">{g.entries.map((e) => <button key={e.person.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(e.person.id)}><PersonChip ds={scoped} p={e.person} to={false} /><span className="rel-label" style={{ display: 'block', fontWeight: 400 }}>{e.label.startsWith('connection') ? e.label : `your ${e.label}`}</span></button>)}</div>
+                </div>
+              ))}
+            </>
+          ) : gens.map((g) => (
             <div className="card" key={g}>
               <h3>{g === 0 ? `${owner}'s generation` : g > 0 ? `${g === 1 ? 'Parents' : g === 2 ? 'Grandparents' : g === 3 ? 'Great-grandparents' : `Generation ${g}`}` : 'Children'}</h3>
               <div className="stack">{scoped.people.filter((p) => p.generation === g).map((p) => <button key={p.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(p.id)}><PersonChip ds={scoped} p={p} to={false} /></button>)}</div>
             </div>
           ))}
-          {can.contribute && <div className="card"><h3>Something that fits nowhere above?</h3><p className="muted">A note about the whole family, a lead, a photo you have.</p><button className="btn primary" onClick={() => setPersonId('__branch')}>Add a general note</button></div>}
+          {can.contribute && <div className="card"><h3>Something that fits nowhere above?</h3><p className="muted">A note about the whole family, a lead, a photo you have, or a story you would rather tell in your own order.</p><button className="btn primary" onClick={() => setPersonId('__branch')}>Add a general note</button></div>}
         </div>
       )}
       {tab === 'people' && (person || personId === '__branch') && (
-        <Contribute scoped={scoped} person={person ?? null} inv={inv} canContribute={can.contribute} onBack={() => setPersonId(null)} api={api} token={token} deviceId={deviceId} onSubmitted={refreshScoped} onRequest={() => setShowRequest(true)} />
+        <Contribute key={(person?.id ?? 'branch') + (startKind ?? '')} scoped={scoped} person={person ?? null} meId={me?.id} inv={inv} canContribute={can.contribute} startKind={startKind} onBack={() => { setPersonId(null); setStartKind(null); }} api={api} token={token} deviceId={deviceId} onSubmitted={refreshScoped} onRequest={() => setShowRequest(true)} />
       )}
     </main>
   );
@@ -222,8 +255,9 @@ function RequestAccess({ reason, owner, onSubmit }: { reason: string; owner: str
   );
 }
 
-function Contribute({ scoped, person, inv, canContribute, onBack, api, token, deviceId, onSubmitted, onRequest }: { scoped: Dataset; person: Person | null; inv: Invitation; canContribute: boolean; onBack: () => void; api: InviteApi; token: string; deviceId: string; onSubmitted: () => Promise<void>; onRequest: () => void }) {
-  const [kind, setKind] = useState<ContributionKind | null>(null);
+function Contribute({ scoped, person, meId, inv, canContribute, startKind, onBack, api, token, deviceId, onSubmitted, onRequest }: { scoped: Dataset; person: Person | null; meId?: string; inv: Invitation; canContribute: boolean; startKind: ContributionKind | null; onBack: () => void; api: InviteApi; token: string; deviceId: string; onSubmitted: () => Promise<void>; onRequest: () => void }) {
+  const [kind, setKind] = useState<ContributionKind | null>(startKind);
+  const relation = person && meId && person.id !== meId ? howRelated(scoped, person.id, meId).label : person && meId ? 'you' : '';
   const [text, setText] = useState('');
   const [why, setWhy] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -293,10 +327,11 @@ function Contribute({ scoped, person, inv, canContribute, onBack, api, token, de
 
   return (
     <div className="stack">
-      <div><button className="btn small" onClick={onBack}>← All people</button></div>
+      <div><button className="btn small" onClick={onBack}>← Back</button></div>
       {person && (
         <div className="card">
           <h2>{displayName(person)}</h2>
+          {relation && <p className="rel-label" style={{ marginTop: -6 }}>{relation === 'you' ? 'This is you.' : `Your ${relation}.`}</p>}
           <p className="row"><ConfidencePill c={person.confidence} /><span className="pill">{lifespan(scoped, person) || 'no dates recorded'}</span><span className="pill">{person.branch}</span></p>
           <p>{person.bio ?? <span className="muted">No story written yet. Do you know one?</span>}</p>
           <dl className="kv">

@@ -35,6 +35,8 @@
 }
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+button, a { -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
 body {
   background: var(--paper);
@@ -58,7 +60,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar {
   display: flex; align-items: center; gap: 18px; padding: 10px 20px;
   border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 85%, white 15%);
-  position: sticky; top: 0; z-index: 20; backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 20;
 }
 .brand { font-family: var(--serif); font-weight: 700; font-size: 1.15rem; text-decoration: none; display: flex; align-items: center; gap: 10px; }
 .brand .mark { width: 26px; height: 26px; }
@@ -142,6 +144,9 @@ table.list th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.
 .empty { padding: 40px 20px; text-align: center; color: var(--ink-3); }
 .banner { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper-2); margin-bottom: 16px; }
 .banner.warn { border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.gap { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper-2); }
+.gap strong { font-weight: 600; }
+.rel-label { color: var(--ink-3); font-size: 0.85rem; }
 .question { padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--paper-2); border-radius: 0 8px 8px 0; margin-bottom: 8px; }
 .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 0.95rem; }
 .kv dt { color: var(--ink-3); }
@@ -149,10 +154,54 @@ table.list th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.
 code.token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--paper-2); padding: 2px 6px; border-radius: 6px; word-break: break-all; }
 .footer { border-top: 1px solid var(--line); padding: 14px 20px; font-size: 0.85rem; color: var(--ink-3); display: flex; gap: 14px; flex-wrap: wrap; }
 
+/* Phones (iPhone first). The top bar keeps the name and status; the main navigation becomes a
+   bottom tab bar that clears the home indicator; tables scroll sideways; inputs stay at 16px so
+   iOS does not zoom on focus; tap targets are at least 44px tall. */
 @media (max-width: 720px) {
-  .topbar { padding: 8px 12px; gap: 10px; }
-  .nav a { padding: 6px 9px; font-size: 0.9rem; }
-  .page { padding: 16px 14px 50px; }
-  .drawer { top: auto; height: 70vh; width: 100%; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; }
-  .kv { grid-template-columns: 1fr; }
+  :root { --bottom-nav: 60px; }
+  body { font-size: 17px; }
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.3rem; }
+  .topbar { padding: 8px 12px; gap: 10px; min-height: 54px; }
+  .brand { font-size: 1.05rem; }
+  .brand .mark { width: 22px; height: 22px; }
+  .nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0;
+    background: color-mix(in srgb, var(--paper) 92%, white 8%); border-top: 1px solid var(--line);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); backdrop-filter: blur(10px);
+  }
+  .nav a { text-align: center; padding: 10px 2px; font-size: 0.78rem; border-radius: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .page { padding: 14px 14px calc(30px + var(--bottom-nav) + env(safe-area-inset-bottom)); }
+  .page.wide { padding-bottom: 0; }
+  .hero { padding: 16px 0 12px; }
+  .hero p.lede { font-size: 1.02rem; }
+  .card { padding: 14px; }
+  .card .big { font-size: 1.6rem; }
+  .btn { min-height: 44px; padding: 10px 14px; }
+  .btn.small { min-height: 36px; padding: 6px 12px; }
+  label.field input, label.field select, label.field textarea { font-size: 16px; padding: 11px 12px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-left: -14px; margin-right: -14px; padding: 0 14px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button, .tabs a { white-space: nowrap; padding: 12px 12px; }
+  table.list { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; font-size: 0.9rem; }
+  table.list th, table.list td { padding: 8px 8px; }
+  .viz { height: calc(100dvh - 54px - var(--bottom-nav) - env(safe-area-inset-bottom)); min-height: 360px; }
+  .viz.embedded { height: 100%; min-height: 0; }
+  .viz-toolbar { top: 8px; left: 8px; right: 8px; gap: 6px; }
+  .viz-toolbar .panel { padding: 6px 10px; font-size: 0.9rem; }
+  .viz-toolbar .panel.row { gap: 6px; }
+  .viz-toolbar .panel.row select, .viz-toolbar .panel.row input { max-width: 46vw; font-size: 0.85rem; }
+  .viz-toolbar .panel:not(.row):not(.legend) { display: none; }
+  .viz-toolbar .legend .muted { display: none; }
+  .gap { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .legend { gap: 8px; font-size: 0.78rem; }
+  .drawer { top: auto; height: 72vh; width: 100%; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .kv { grid-template-columns: 1fr; gap: 2px 0; }
+  .kv dt { margin-top: 6px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tl-year { font-size: 1.7rem; }
+  .footer { padding: 12px 14px calc(12px + var(--bottom-nav) + env(safe-area-inset-bottom)); flex-direction: column; gap: 4px; }
+  .footer.no-nav { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .page.invite { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 }

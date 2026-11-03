@@ -1,5 +1,5 @@
 import type { AccessRequest, AccessScope, Dataset, Invitation, Person, Role } from './types';
-import { ancestorDistances, newId, parentsOf } from './graph';
+import { ancestorDistances, childrenOf, newId, parentsOf, partnersOf } from './graph';
 
 // Scoping rules (also enforced server-side in supabase/schema.sql):
 // - A person is visible if their branch is in the scope, or they are listed explicitly,
@@ -34,9 +34,23 @@ export function redact(ds: Dataset, scope: AccessScope): Dataset {
     return true;
   }).map((e) => ({ ...e, personIds: e.personIds.filter((id) => ids.has(id)) }));
   const placeIds = new Set(events.map((e) => e.placeId).filter(Boolean));
+  const recordedFor = (p: Person): NonNullable<Person['recorded']> => {
+    const ev = ds.events.filter((e) => e.personIds.includes(p.id));
+    const out: NonNullable<Person['recorded']> = [];
+    if (ds.relationships.filter((r) => r.type === 'parent-child' && r.toId === p.id).map((r) => ds.people.find((x) => x.id === r.fromId)).filter((x) => x && !x.placeholder).length >= 2) out.push('parents');
+    const birth = ev.find((e) => e.type === 'birth');
+    if (birth && birth.date?.year && birth.placeId) out.push('birth');
+    if (ev.some((e) => e.type === 'death')) out.push('death');
+    if (ev.some((e) => e.type === 'residence')) out.push('residence');
+    if (ev.some((e) => e.type === 'occupation')) out.push('occupation');
+    if (ds.media.some((m) => m.kind === 'photo' && m.personIds.includes(p.id))) out.push('photo');
+    if (p.bio) out.push('bio');
+    if (p.maidenName) out.push('maidenName');
+    return out;
+  };
   return {
     ...ds,
-    people: people.map((p) => ({ ...p, notes: undefined, openQuestions: undefined })),
+    people: people.map((p) => ({ ...p, notes: undefined, openQuestions: undefined, recorded: recordedFor(p) })),
     relationships: ds.relationships.filter((r) => ids.has(r.fromId) && ids.has(r.toId)),
     events,
     places: ds.places.filter((pl) => placeIds.has(pl.id)),
@@ -233,8 +247,12 @@ export function suggestScope(ds: Dataset, personId?: string): AccessScope {
   if (!personId) return { branches: [], personIds: [], includeLivingDetails: false };
   const p = ds.people.find((x) => x.id === personId);
   if (!p) return { branches: [], personIds: [], includeLivingDetails: false };
-  const branches: AccessScope['branches'] = p.branch === 'both' ? ['paternal', 'maternal'] : p.branch === 'self' || p.branch === 'household' ? ['paternal', 'maternal', 'household'] : [p.branch];
-  void parentsOf;
+  const branches: AccessScope['branches'] = p.branch === 'both' ? ['paternal', 'maternal', 'household'] : p.branch === 'self' || p.branch === 'household' ? ['paternal', 'maternal', 'household'] : [p.branch, 'household'];
+  // Their own people by name, whatever branch they were filed under: partners, parents, children, grandchildren.
+  const ids = new Set<string>([personId]);
+  for (const { person } of partnersOf(ds, personId)) ids.add(person.id);
+  for (const x of parentsOf(ds, personId)) ids.add(x.id);
+  for (const c of childrenOf(ds, personId)) { ids.add(c.id); for (const { person } of partnersOf(ds, c.id)) ids.add(person.id); for (const g of childrenOf(ds, c.id)) ids.add(g.id); }
   void ancestorDistances;
-  return { branches, personIds: [personId], includeLivingDetails: false };
+  return { branches, personIds: [...ids], includeLivingDetails: false };
 }

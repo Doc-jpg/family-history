@@ -27,7 +27,9 @@ export interface Person {
   bio?: string;
   occupations?: string[];
   confidence: Confidence;
-  placeholder: boolean; // true = a slot waiting for a real person; never shown as fact
+  placeholder: boolean;
+  /** Set only on a redacted copy for a relative: which kinds of fact the full record holds for this person, so the "fill in the blanks" list does not ask for what is already known but withheld. */
+  recorded?: ('parents' | 'birth' | 'death' | 'residence' | 'occupation' | 'photo' | 'bio' | 'maidenName')[]; // true = a slot waiting for a real person; never shown as fact
   portraitMediaId?: string;
   notes?: string;
   privacy: 'private' | 'family' | 'shareable'; // what may be shown to invited relatives

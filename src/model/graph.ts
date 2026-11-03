@@ -119,7 +119,7 @@ export interface RelationResult {
 }
 
 /** How is a related to b? Walks parent-child edges; partner edges only for direct spouses and in-laws. */
-export function howRelated(ds: Dataset, aId: string, bId: string): RelationResult {
+export function howRelated(ds: Dataset, aId: string, bId: string, viaPartner = true): RelationResult {
   if (aId === bId) return { label: 'the same person', path: [aId], commonAncestorIds: [] };
   const a = personById(ds, aId);
   const b = personById(ds, bId);
@@ -164,16 +164,27 @@ export function howRelated(ds: Dataset, aId: string, bId: string): RelationResul
     const pathB = chain(ds, bId, best.id, db).reverse().slice(1);
     return { label, path: [...pathA, ...pathB], commonAncestorIds: commons };
   }
-  // In-law through a's partner?
+  // In-law through a's partner? (one hop only, so two in-laws never chase each other forever)
+  if (!viaPartner) return { label: 'no known connection yet', path: [], commonAncestorIds: [] };
   for (const { person } of partnersOf(ds, aId)) {
-    const via = howRelated(ds, person.id, bId);
-    if (via.label !== 'unknown' && via.path.length) return { label: `${via.label}-in-law (through ${displayName(person)})`, path: [aId, ...via.path], commonAncestorIds: via.commonAncestorIds };
+    const via = howRelated(ds, person.id, bId, false);
+    if (via.label !== 'unknown' && via.path.length) return { label: `${regender(via.label, a.sex)}-in-law (through ${displayName(person)})`, path: [aId, ...via.path], commonAncestorIds: via.commonAncestorIds };
   }
   for (const { person } of partnersOf(ds, bId)) {
-    const via = howRelated(ds, aId, person.id);
+    const via = howRelated(ds, aId, person.id, false);
     if (via.label !== 'unknown' && via.path.length && !via.label.includes('in-law')) return { label: `${via.label}-in-law (through ${displayName(person)})`, path: [...via.path, bId], commonAncestorIds: via.commonAncestorIds };
   }
   return { label: 'no known connection yet', path: [], commonAncestorIds: [] };
+}
+
+/** The partner's role, restated for the in-law's own sex: Deren is Gina's son, so his wife is her daughter-in-law. */
+function regender(label: string, sex: Person['sex']): string {
+  const pairs: [string, string, string][] = [['son', 'daughter', 'child'], ['brother', 'sister', 'sibling'], ['father', 'mother', 'parent'], ['grandson', 'granddaughter', 'grandchild'], ['grandfather', 'grandmother', 'grandparent'], ['nephew', 'niece', 'niece/nephew'], ['uncle', 'aunt', 'aunt/uncle']];
+  for (const [m, f, n] of pairs) {
+    const re = new RegExp(`(^|-)(${m}|${f}|${n.replace('/', '\\/')})$`);
+    if (re.test(label)) return label.replace(re, `$1${sex === 'M' ? m : sex === 'F' ? f : n}`);
+  }
+  return label;
 }
 
 function chain(ds: Dataset, from: string, to: string, dist: Map<string, number>): string[] {

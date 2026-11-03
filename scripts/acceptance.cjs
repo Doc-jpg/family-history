@@ -132,7 +132,7 @@ function check(name, ok, detail = '') { results.push({ name, ok, detail }); cons
       check('wrong code refused', (await rel.textContent('body')).includes('does not match'));
       await rel.fill('input', code);
       await rel.click('button:has-text("Open")');
-      await rel.waitForSelector('text=Welcome, Test Relative');
+      await rel.waitForSelector('text=Welcome, Test.');
       const momDevice = await rel.evaluate(() => localStorage.getItem('family-history:device-id'));
       const body = await rel.textContent('body');
       check('relative sees no placeholder slots', !body.includes('name needed'));
@@ -218,12 +218,12 @@ function check(name, ok, detail = '') { results.push({ name, ok, detail }); cons
       await sis.waitForSelector('input');
       await sis.fill('input', t2[1]);
       await sis.click('button:has-text("Open")');
-      await sis.waitForSelector("text=Welcome, Test Relative's Sister");
+      await sis.waitForSelector("text=Welcome, Test.");
       check('granted relative is a contributor on her own device', !!(await sis.$('button:has-text("Add a general note")')));
       // Mom's original device still works as contributor after the sister's activity
       await rel.evaluate((id) => localStorage.setItem('family-history:device-id', id), momDevice); // all simulated devices share one browser here
       await rel.reload();
-      await rel.waitForSelector('text=Welcome, Test Relative.');
+      await rel.waitForSelector('text=Welcome, Test.');
       check('original device still contributor', !!(await rel.$('button:has-text("Add a general note")')));
 
       // Revoke and confirm the relative is locked out on a fresh session
