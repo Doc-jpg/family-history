@@ -67,6 +67,22 @@ describe('relationships', () => {
   it('finds siblings', () => {
     expect(siblingsOf(ds, DEREN_ID).map((p) => p.id).sort()).toEqual(['t-sis']);
   });
+  it('calls siblings "half" only when both have two recorded parents and share one; names step relations', () => {
+    const d = withFamily();
+    const mk = (id: string, given: string, sex: 'M' | 'F'): Person => ({ id, givenNames: given, surname: 'Stepson', sex, living: 'yes', branch: 'inlaw', generation: 0, confidence: 'likely', placeholder: false, privacy: 'family', updatedAt: 't' });
+    // The mother's second husband and his two sons; the sons' mother is not recorded.
+    d.people.push(mk('t-stepdad', 'TestStepdad', 'M'), mk('t-sb1', 'TestStepbrotherOne', 'M'), mk('t-sb2', 'TestStepbrotherTwo', 'M'));
+    d.relationships.push({ id: 'r-m-stepdad', type: 'partner', fromId: 't-m', toId: 't-stepdad', subtype: 'marriage', status: 'verified', sourceIds: [] });
+    d.relationships.push({ id: 'r-sd-1', type: 'parent-child', fromId: 't-stepdad', toId: 't-sb1', status: 'verified', sourceIds: [] }, { id: 'r-sd-2', type: 'parent-child', fromId: 't-stepdad', toId: 't-sb2', status: 'verified', sourceIds: [] });
+    expect(howRelated(d, 't-sb1', 't-sb2').label).toBe('brother'); // one shared recorded parent, other parent unknown: not "half"
+    expect(howRelated(d, 't-sb1', DEREN_ID).label).toBe('stepbrother');
+    expect(howRelated(d, 't-stepdad', DEREN_ID).label).toBe('stepfather');
+    expect(howRelated(d, DEREN_ID, 't-stepdad').label).toBe('stepson');
+    // A true half-sibling: the root's father and the stepmother-figure both recorded, sharing only the father.
+    d.people.push(mk('t-other-mom', 'TestOtherMom', 'F'), mk('t-half', 'TestHalf', 'F'));
+    d.relationships.push({ id: 'r-f-half', type: 'parent-child', fromId: 't-f', toId: 't-half', status: 'verified', sourceIds: [] }, { id: 'r-om-half', type: 'parent-child', fromId: 't-other-mom', toId: 't-half', status: 'verified', sourceIds: [] });
+    expect(howRelated(d, 't-half', DEREN_ID).label).toBe('half-sister');
+  });
 });
 
 describe('access scoping', () => {

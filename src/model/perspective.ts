@@ -13,8 +13,10 @@ const GROUP_ORDER = ['Your parents and grandparents', 'Your partner, children an
 
 function groupFor(label: string): (typeof GROUP_ORDER)[number] {
   if (/in-law/.test(label)) return 'Related by marriage';
+  if (/^step(brother|sister|sibling)$/.test(label)) return 'Your brothers and sisters, nieces and nephews';
+  if (/^step(mother|father|parent)$|^step-.*grand(mother|father|parent)$/.test(label)) return 'Your parents and grandparents';
   if (/^(mother|father|parent|.*grand(mother|father|parent))$/.test(label)) return 'Your parents and grandparents';
-  if (/^(husband|wife|spouse|partner|son|daughter|child|.*grand(son|daughter|child))$/.test(label)) return 'Your partner, children and grandchildren';
+  if (/^(husband|wife|spouse|partner|son|daughter|child|.*grand(son|daughter|child))$/.test(label) || /^step(son|daughter|child)$|^step-.*grand/.test(label)) return 'Your partner, children and grandchildren';
   if (/(sister|brother|sibling|niece|nephew)/.test(label)) return 'Your brothers and sisters, nieces and nephews';
   if (/(aunt|uncle|cousin)/.test(label)) return 'Your aunts, uncles and cousins';
   return 'Elsewhere in the family';

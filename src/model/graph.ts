@@ -149,8 +149,11 @@ export function howRelated(ds: Dataset, aId: string, bId: string, viaPartner = t
     } else if (y === 0) {
       label = x === 1 ? (femaleA ? 'daughter' : a.sex === 'M' ? 'son' : 'child') : `${greats(x - 2)}${femaleA ? 'granddaughter' : a.sex === 'M' ? 'grandson' : 'grandchild'}`;
     } else if (x === 1 && y === 1) {
-      const full = commons.length >= 2;
-      label = `${full ? '' : 'half-'}${femaleA ? 'sister' : a.sex === 'M' ? 'brother' : 'sibling'}`;
+      // "Half" only when both have two recorded parents and share just one. A parent nobody has
+      // written down yet is not evidence of a different parent.
+      const recordedParents = (id: string) => parentsOf(ds, id).filter((p) => !p.placeholder).length;
+      const half = commons.length < 2 && recordedParents(aId) >= 2 && recordedParents(bId) >= 2;
+      label = `${half ? 'half-' : ''}${femaleA ? 'sister' : a.sex === 'M' ? 'brother' : 'sibling'}`;
     } else if (x === 1) {
       label = `${greats(y - 2)}${femaleA ? 'aunt' : a.sex === 'M' ? 'uncle' : 'aunt/uncle'}`;
     } else if (y === 1) {
@@ -163,6 +166,13 @@ export function howRelated(ds: Dataset, aId: string, bId: string, viaPartner = t
     const pathA = chain(ds, aId, best.id, da);
     const pathB = chain(ds, bId, best.id, db).reverse().slice(1);
     return { label, path: [...pathA, ...pathB], commonAncestorIds: commons };
+  }
+  // Step-siblings: a's parent married someone who is not a's parent, and b is that person's child.
+  for (const pa of parentsOf(ds, aId)) {
+    for (const { person: q } of partnersOf(ds, pa.id)) {
+      if (parentsOf(ds, aId).some((p) => p.id === q.id)) continue;
+      if (childrenOf(ds, q.id).some((c) => c.id === bId)) return { label: `step${a.sex === 'F' ? 'sister' : a.sex === 'M' ? 'brother' : 'sibling'}`, path: [aId, pa.id, q.id, bId], commonAncestorIds: [] };
+    }
   }
   // In-law through a's partner? (one hop only, so two in-laws never chase each other forever)
   if (!viaPartner) return { label: 'no known connection yet', path: [], commonAncestorIds: [] };

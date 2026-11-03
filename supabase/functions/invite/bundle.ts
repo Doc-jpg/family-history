@@ -13,7 +13,10 @@ function newId(prefix) {
 
 // src/model/access.ts
 function visiblePeople(ds, scope) {
-  return ds.people.filter((p) => isVisible(ds, p, scope));
+  const base = ds.people.filter((p) => isVisible(ds, p, scope));
+  const ids = new Set(base.map((p) => p.id));
+  const spouses = ds.relationships.filter((r) => r.type === "partner" && ids.has(r.fromId) !== ids.has(r.toId)).map((r) => ids.has(r.fromId) ? r.toId : r.fromId).map((id) => ds.people.find((p) => p.id === id)).filter((p) => !!p && !p.placeholder && p.privacy !== "private" && p.branch === "unknown" && !ids.has(p.id));
+  return [...base, ...spouses];
 }
 function isVisible(ds, p, scope) {
   if (p.placeholder) return false;
