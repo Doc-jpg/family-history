@@ -10,7 +10,7 @@ export default function Constellation({ ds, className }: { ds: Dataset; classNam
     const gens = [...new Set(people.map((p) => p.generation))].sort((a, b) => b - a);
     const W = 400, H = 300, padX = 24, padY = 18;
     const rowY = (g: number) => padY + (gens.indexOf(g) / Math.max(1, gens.length - 1)) * (H - padY * 2);
-    const order: Record<string, number> = { paternal: 0, both: 1, self: 1, household: 1, unknown: 2, maternal: 3 };
+    const order: Record<string, number> = { paternal: 0, both: 1, self: 1, household: 1, inlaw: 1.5, unknown: 2, maternal: 3 };
     const pts = new Map<string, { x: number; y: number; branch: string; dead: boolean }>();
     for (const g of gens) {
       const row = people.filter((p) => p.generation === g).sort((a, b) => (order[a.branch] ?? 2) - (order[b.branch] ?? 2) || a.id.localeCompare(b.id));

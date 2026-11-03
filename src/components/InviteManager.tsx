@@ -61,7 +61,7 @@ export default function InviteManager({ ds, update }: Props) {
         </div>
         <div className="row" style={{ marginTop: 10 }}>
           <strong>They may see:</strong>
-          {(['paternal', 'maternal', 'household'] as Branch[]).map((b) => <label key={b} className="check"><input type="checkbox" checked={scope.branches.includes(b)} onChange={() => toggleBranch(b)} /> {b}</label>)}
+          {(['paternal', 'maternal', 'household', 'inlaw'] as Branch[]).map((b) => <label key={b} className="check"><input type="checkbox" checked={scope.branches.includes(b)} onChange={() => toggleBranch(b)} /> {b}</label>)}
           <label className="check"><input type="checkbox" checked={scope.includeLivingDetails} onChange={(e) => setScope((s) => ({ ...s, includeLivingDetails: e.target.checked }))} /> birth details of living people</label>
         </div>
         <p className="muted" style={{ marginTop: 6 }}>Empty slots and anyone marked private are never shown to relatives, whatever the scope.</p>

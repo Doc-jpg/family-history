@@ -154,6 +154,7 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
             <span><i className="sw" style={{ background: 'var(--maternal)' }} />Maternal</span>
             <span><i className="sw" style={{ background: 'var(--self)' }} />You</span>
             <span><i className="sw" style={{ background: 'var(--household)' }} />Household</span>
+            {ds.people.some((p) => p.branch === 'inlaw') && <span><i className="sw" style={{ background: 'var(--inlaw)' }} />{(() => { const sp = partnersOf(ds, rootPerson.id)[0]; return sp ? `${sp.person.givenNames.split(' ')[0]}'s side` : 'In-laws'; })()}</span>}
             <span className="muted">dashed ring = slot · dotted ring = pencil (one voice) · red = under question · dashed line = unverified</span>
           </div>
           <div className="panel hint">

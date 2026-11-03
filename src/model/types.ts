@@ -3,7 +3,7 @@
 // what is verified, what is a guess, and what is still unresearched.
 
 export type Confidence = 'verified' | 'likely' | 'tentative' | 'unresearched';
-export type Branch = 'self' | 'paternal' | 'maternal' | 'both' | 'household' | 'unknown';
+export type Branch = 'self' | 'paternal' | 'maternal' | 'both' | 'household' | 'inlaw' | 'unknown'; // inlaw = the spouse's own ancestry (the children's other side)
 export type RelationshipStatus = 'verified' | 'unverified' | 'disputed';
 
 export interface DateValue {
@@ -270,7 +270,7 @@ export interface Dataset {
 export interface Settings {
   familyName: string;
   rootPersonId: string;
-  colors: { paternal: string; maternal: string; self: string; household: string; unknown: string };
+  colors: { paternal: string; maternal: string; self: string; household: string; unknown: string; inlaw?: string };
   theme: 'parchment' | 'ink' | 'linen';
   seedVersion?: number; // bumped when the shipped seed gains facts; the store merges them into older local copies
 }

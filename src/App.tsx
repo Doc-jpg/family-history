@@ -34,6 +34,7 @@ export default function App() {
     r.setProperty('--self', ds.settings.colors.self);
     r.setProperty('--household', ds.settings.colors.household);
     r.setProperty('--unknown', ds.settings.colors.unknown);
+    if (ds.settings.colors.inlaw) r.setProperty('--inlaw', ds.settings.colors.inlaw);
   }, [ds.settings]);
 
   const isInvite = loc.pathname.startsWith('/invite');

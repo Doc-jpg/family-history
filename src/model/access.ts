@@ -19,6 +19,7 @@ export function isVisible(ds: Dataset, p: Person, scope: AccessScope): boolean {
   if (scope.personIds.includes(p.id)) return true;
   if (scope.branches.includes(p.branch)) return true;
   if (p.branch === 'both' && (scope.branches.includes('paternal') || scope.branches.includes('maternal'))) return true;
+  if (p.branch === 'inlaw' && scope.branches.includes('household')) return true;
   return false;
 }
 
