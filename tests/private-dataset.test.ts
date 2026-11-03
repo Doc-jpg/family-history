@@ -9,7 +9,7 @@ const path = 'data/private/family-dataset.json';
 const has = existsSync(path);
 
 describe.skipIf(!has)('private family dataset', () => {
-  const ds = JSON.parse(readFileSync(path, 'utf8')) as Dataset;
+  const ds = (has ? JSON.parse(readFileSync(path, 'utf8')) : { people: [], events: [], settings: {} }) as Dataset;
   it('has a root, sources on every event, and no placeholder leaks into GEDCOM', () => {
     expect(ds.people.some((p) => p.id === ds.settings.rootPersonId)).toBe(true);
     expect(ds.events.filter((e) => !e.sourceIds.length)).toEqual([]);
