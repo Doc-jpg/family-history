@@ -151,6 +151,11 @@ export default function InviteView() {
   const person = personId ? scoped.people.find((p) => p.id === personId) : null;
   const gens = [...new Set(scoped.people.map((p) => p.generation))].sort((a, b) => b - a);
   const me = inv.personId ? scoped.people.find((p) => p.id === inv.personId) ?? null : null;
+  // A forwarded, view-only visitor is not the invitee: say "Laura's mother", not "your mother".
+  const isMe = mode === 'full';
+  const whose = me ? (isMe ? 'your' : `${me.givenNames.split(' ')[0]}'s`) : '';
+  const relLabel = (label: string) => (label.startsWith('connection') ? label : `${whose} ${label}`);
+  const groupTitle = (t: string) => (isMe ? t : t.replace(/^Your /, `${whose} `));
   const groups = me ? relativesOf(scoped, me.id) : [];
   const gaps: Gap[] = me ? gapsFor(scoped, me.id) : [];
   const toConfirm = me && can.contribute ? needsConfirmation(scoped, scoped.people.filter((p) => groups.some((g) => g.entries.some((e) => e.person.id === p.id && e.distance <= 3))), inv.id) : [];
@@ -170,11 +175,11 @@ export default function InviteView() {
       )}
       <section className="hero" style={{ paddingTop: 16 }}>
         <h1>{mode === 'full' ? `Welcome, ${inv.recipientName.split(' ')[0]}.` : 'The family, so far.'}</h1>
-        <p className="lede">{me ? `This is your family as we know it so far, seen from where you stand: your parents and grandparents, your children, your brothers and sisters. ` : 'Here is what we know so far about the family. '}{can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : mode === 'full' ? `You have been given a look-only link; if you would like to add memories, ask ${owner} for a contributor link.` : ''}</p>
-        <div className="row"><span className="pill">{mode === 'full' ? inv.role : 'view only'}</span>{me && <span className="pill">centered on you</span>}</div>
+        <p className="lede">{me ? (isMe ? `This is your family as we know it so far, seen from where you stand: your parents and grandparents, your children, your brothers and sisters. ` : `This is ${whose} family as we know it so far, seen from where ${me.givenNames.split(' ')[0]} stands. `) : 'Here is what we know so far about the family. '}{can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : mode === 'full' ? `You have been given a look-only link; if you would like to add memories, ask ${owner} for a contributor link.` : ''}</p>
+        <div className="row"><span className="pill">{mode === 'full' ? inv.role : 'view only'}</span>{me && <span className="pill">centered on {isMe ? 'you' : me.givenNames.split(' ')[0]}</span>}</div>
       </section>
       <nav className="tabs">
-        <button className={tab === 'people' ? 'active' : ''} onClick={() => { setTab('people'); setPersonId(null); }}>{me ? 'Your people' : 'People'}</button>
+        <button className={tab === 'people' ? 'active' : ''} onClick={() => { setTab('people'); setPersonId(null); }}>{me ? (isMe ? 'Your people' : `${whose} people`) : 'People'}</button>
         <button className={tab === 'tree' ? 'active' : ''} onClick={() => setTab('tree')}>Tree</button>
         {me && can.contribute && (gaps.length > 0 || toConfirm.length > 0) && <button className={tab === 'blanks' ? 'active' : ''} onClick={() => { setTab('blanks'); setPersonId(null); }}>Fill in the blanks ({gaps.length + toConfirm.length})</button>}
       </nav>
@@ -218,13 +223,13 @@ export default function InviteView() {
           {me ? (
             <>
               <div className="card" key="me">
-                <h3>You</h3>
+                <h3>{isMe ? 'You' : me.givenNames.split(' ')[0]}</h3>
                 <div className="stack"><button className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(me.id)}><PersonChip ds={scoped} p={me} to={false} /></button></div>
               </div>
               {groups.map((g) => (
                 <div className="card" key={g.title}>
-                  <h3>{g.title}</h3>
-                  <div className="stack">{g.entries.map((e) => <button key={e.person.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(e.person.id)}><PersonChip ds={scoped} p={e.person} to={false} /> <StandingPill ds={scoped} personId={e.person.id} /><span className="rel-label" style={{ display: 'block', fontWeight: 400 }}>{e.label.startsWith('connection') ? e.label : `your ${e.label}`}</span></button>)}</div>
+                  <h3>{groupTitle(g.title)}</h3>
+                  <div className="stack">{g.entries.map((e) => <button key={e.person.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(e.person.id)}><PersonChip ds={scoped} p={e.person} to={false} /> <StandingPill ds={scoped} personId={e.person.id} /><span className="rel-label" style={{ display: 'block', fontWeight: 400 }}>{relLabel(e.label)}</span></button>)}</div>
                 </div>
               ))}
             </>
@@ -238,7 +243,7 @@ export default function InviteView() {
         </div>
       )}
       {tab === 'people' && (person || personId === '__branch') && (
-        <Contribute key={(person?.id ?? 'branch') + (startKind ?? '')} scoped={scoped} person={person ?? null} meId={me?.id} inv={inv} canContribute={can.contribute} startKind={startKind} onBack={() => { setPersonId(null); setStartKind(null); }} api={api} token={token} deviceId={deviceId} onSubmitted={refreshScoped} onRequest={() => setShowRequest(true)} />
+        <Contribute key={(person?.id ?? 'branch') + (startKind ?? '')} scoped={scoped} person={person ?? null} meId={me?.id} whose={whose} inv={inv} canContribute={can.contribute} startKind={startKind} onBack={() => { setPersonId(null); setStartKind(null); }} api={api} token={token} deviceId={deviceId} onSubmitted={refreshScoped} onRequest={() => setShowRequest(true)} />
       )}
     </main>
   );
@@ -271,7 +276,7 @@ function RequestAccess({ reason, owner, onSubmit }: { reason: string; owner: str
   );
 }
 
-function Contribute({ scoped, person, meId, inv, canContribute, startKind, onBack, api, token, deviceId, onSubmitted, onRequest }: { scoped: Dataset; person: Person | null; meId?: string; inv: Invitation; canContribute: boolean; startKind: ContributionKind | null; onBack: () => void; api: InviteApi; token: string; deviceId: string; onSubmitted: () => Promise<void>; onRequest: () => void }) {
+function Contribute({ scoped, person, meId, whose, inv, canContribute, startKind, onBack, api, token, deviceId, onSubmitted, onRequest }: { scoped: Dataset; person: Person | null; meId?: string; whose?: string; inv: Invitation; canContribute: boolean; startKind: ContributionKind | null; onBack: () => void; api: InviteApi; token: string; deviceId: string; onSubmitted: () => Promise<void>; onRequest: () => void }) {
   const [kind, setKind] = useState<ContributionKind | null>(startKind);
   const relation = person && meId && person.id !== meId ? howRelated(scoped, person.id, meId).label : person && meId ? 'you' : '';
   const [text, setText] = useState('');
@@ -347,7 +352,7 @@ function Contribute({ scoped, person, meId, inv, canContribute, startKind, onBac
       {person && (
         <div className="card">
           <h2>{displayName(person)}</h2>
-          {relation && <p className="rel-label" style={{ marginTop: -6 }}>{relation === 'you' ? 'This is you.' : `Your ${relation}.`}</p>}
+          {relation && <p className="rel-label" style={{ marginTop: -6 }}>{relation === 'you' ? (whose === 'your' ? 'This is you.' : `This is ${inv.recipientName.split(' ')[0]}.`) : `${whose === 'your' ? 'Your' : whose} ${relation}.`}</p>}
           <p className="row"><ConfidencePill c={person.confidence} /><span className="pill">{lifespan(scoped, person) || 'no dates recorded'}</span><span className="pill">{person.branch}</span></p>
           <p>{person.bio ?? <span className="muted">No story written yet. Do you know one?</span>}</p>
           <dl className="kv">
