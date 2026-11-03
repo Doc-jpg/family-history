@@ -97,10 +97,10 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
     node.append('circle').attr('class', 'ring').attr('r', 22)
       .attr('stroke', (d) => branchColor(d.data.p.branch))
       .attr('opacity', (d) => (matches && !displayName(d.data.p).toLowerCase().includes(matches) ? 0.25 : 1))
-      .attr('fill', (d) => (highlight.has(d.data.p.id) ? 'color-mix(in srgb, var(--accent) 25%, var(--paper))' : 'var(--paper)'));
+      .attr('fill', (d) => (highlight.has(d.data.p.id) ? 'color-mix(in srgb, var(--accent) 45%, var(--viz-surface))' : 'var(--viz-surface)'));
     node.append('text').attr('text-anchor', 'middle').attr('dy', 5).attr('font-size', 16)
       .text((d) => (d.data.p.placeholder ? '?' : d.data.p.givenNames.slice(0, 1) + (d.data.p.surname.slice(0, 1) || '')));
-    node.filter((d) => d.data.p.living === 'no').append('text').attr('x', 18).attr('y', -14).attr('font-size', 11).attr('fill', 'var(--ink-3)').text('✝');
+    node.filter((d) => d.data.p.living === 'no').append('text').attr('x', 18).attr('y', -14).attr('font-size', 11).attr('fill', 'var(--viz-ink-3)').text('✝');
     node.append('text').attr('class', 'name').attr('text-anchor', 'middle').attr('y', 38).text((d) => (d.data.p.placeholder ? d.data.p.givenNames.replace(' (name needed)', '') : d.data.p.givenNames));
     node.append('text').attr('class', 'name').attr('text-anchor', 'middle').attr('y', 52).text((d) => (d.data.p.placeholder ? '' : d.data.p.surname + (d.data.p.maidenName && d.data.p.maidenName !== d.data.p.surname ? ` (née ${d.data.p.maidenName})` : '')));
     node.append('text').attr('class', 'years').attr('text-anchor', 'middle').attr('y', 66).text((d) => lifespan(ds, d.data.p));
@@ -113,7 +113,7 @@ export default function TreeView({ data, onOpen, rootId }: { data?: Dataset; onO
     });
     // expand/collapse toggles
     node.filter((d) => (d.data.up ? parentsOf(ds, d.data.p.id).some(show) : childrenOf(ds, d.data.p.id).some(show)) && d.data.p.id !== root.id || (d.data.p.id === root.id && false))
-      .append('circle').attr('r', 7).attr('cy', (d) => (d.data.up ? -28 : 92)).attr('fill', 'var(--paper-2)').attr('stroke', 'var(--line)')
+      .append('circle').attr('r', 7).attr('cy', (d) => (d.data.up ? -28 : 92)).attr('fill', 'var(--viz-surface)').attr('stroke', 'var(--viz-line)')
       .on('click', (ev: MouseEvent, d) => { ev.stopPropagation(); setCollapsed((c) => { const n = new Set(c); n.has(d.data.p.id) ? n.delete(d.data.p.id) : n.add(d.data.p.id); return n; }); });
     node.filter((d) => (d.data.up ? parentsOf(ds, d.data.p.id).some(show) : childrenOf(ds, d.data.p.id).some(show)) && d.data.p.id !== root.id)
       .append('text').attr('text-anchor', 'middle').attr('y', (d) => (d.data.up ? -24 : 96)).attr('font-size', 11).text((d) => (collapsed.has(d.data.p.id) ? '+' : '−'));

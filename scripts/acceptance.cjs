@@ -62,8 +62,8 @@ function check(name, ok, detail = '') { results.push({ name, ok, detail }); cons
     await page.waitForFunction((n) => document.body.textContent.includes(n), ROOT_FIRST, { timeout: 10000 }).catch(() => {});
     await page.reload();
     await page.waitForSelector('h1');
-    check(`${label} home renders`, (await page.textContent('h1')).includes('Where we came from'));
-    check(`${label} home loaded the private family dataset`, (await page.textContent('body')).includes(ROOT_NAME) && (await page.textContent('body')).includes('slots'));
+    check(`${label} home renders`, (await page.textContent('h1')).includes('generations'));
+    check(`${label} home loaded the private family dataset`, (await page.textContent('body')).includes(ROOT_FIRST) && (await page.textContent('body')).includes('slots waiting on facts') && (await page.$$('.constellation circle')).length > 10);
     await shot('home');
 
     await page.goto(url('/tree'));

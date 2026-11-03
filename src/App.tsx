@@ -48,7 +48,7 @@ export default function App() {
             <NavLink to="/tree">Tree</NavLink>
             <NavLink to="/map">Map</NavLink>
             <NavLink to="/timeline">Timeline</NavLink>
-            <NavLink to="/related">How related?</NavLink>
+            <NavLink to="/related">Related</NavLink>
             <NavLink to="/admin">Admin</NavLink>
           </nav>
         )}

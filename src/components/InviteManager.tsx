@@ -31,8 +31,22 @@ export default function InviteManager({ ds, update }: Props) {
   }
   const toggleBranch = (b: Branch) => setScope((s) => ({ ...s, branches: s.branches.includes(b) ? s.branches.filter((x) => x !== b) : [...s.branches, b] }));
 
+  /** A look-only link for the whole family: no code is ever entered, so every device opens it view-only. Anyone who wants to add asks for their own link from inside it. */
+  async function makeViewingLink() {
+    const r = await createInvitation({ recipientName: 'the family', deliveryNote: 'shared viewing link; the code is never given out', role: 'viewer', scope: { branches: ['paternal', 'maternal', 'household'], personIds: [], includeLivingDetails: false }, days: 365 });
+    r.invitation.forwarded = 'view';
+    update((d) => audit({ ...d, invitations: [r.invitation, ...d.invitations] }, { actor: 'admin', action: 'create-viewing-link', entity: 'invitation', entityId: r.invitation.id }));
+    setMade({ link: base + r.rawToken, code: r.code, inv: r.invitation });
+  }
+  const viewingLinks = ds.invitations.filter((i) => i.role === 'viewer' && !i.personId && i.status !== 'revoked' && i.recipientName === 'the family');
+
   return (
     <div className="stack">
+      <div className="card">
+        <h3>Share with the whole family (look only)</h3>
+        <p className="muted">One link anyone can open, forward, or post in a family group chat. It shows the tree with nobody's living birth details and no way to change anything. Inside it, a relative who wants to add their part taps "Request access to contribute" and lands on your Requests tab; you grant them a personal link and code from there.{viewingLinks.length ? ` Active viewing links: ${viewingLinks.length}.` : ''}</p>
+        <button className="btn" onClick={makeViewingLink}>Create a family viewing link</button>
+      </div>
       <div className="card">
         <h3>Invite a relative</h3>
         <p className="muted">Each person gets their own link plus a separate 6-digit code, given by text or phone. The first device that enters the code becomes the only device that can contribute. If they forward the link, it opens view-only elsewhere (or not at all, your choice below), and the other person is offered a "request access" form that comes to your Requests tab. The database stores only hashes of the token, the code and the device.</p>
@@ -57,8 +71,14 @@ export default function InviteManager({ ds, update }: Props) {
         <div className="card" style={{ borderColor: 'var(--accent)' }}>
           <h3>Invitation for {made.inv.recipientName}</h3>
           <p><strong>Link</strong> (send this): <code className="token">{made.link}</code></p>
-          <p><strong>Code</strong> (give separately, by text or phone): <code className="token" style={{ fontSize: '1.3rem' }}>{made.code}</code></p>
-          <p className="muted">This is the only time the code is shown. If it is lost, revoke and create a new invitation.</p>
+          {made.inv.recipientName === 'the family' ? (
+            <p className="muted">Share the link however you like. Do not give out the code: as long as nobody enters it, every device opens the link view-only.</p>
+          ) : (
+            <>
+              <p><strong>Code</strong> (give separately, by text or phone): <code className="token" style={{ fontSize: '1.3rem' }}>{made.code}</code></p>
+              <p className="muted">This is the only time the code is shown. If it is lost, revoke and create a new invitation.</p>
+            </>
+          )}
           <div className="row"><button className="btn small" onClick={() => navigator.clipboard?.writeText(made.link)}>Copy link</button><button className="btn small" onClick={() => setMade(null)}>Done</button></div>
         </div>
       )}

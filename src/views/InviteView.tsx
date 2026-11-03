@@ -11,6 +11,7 @@ import { ConfidencePill, PersonChip, lifespan } from '../components/PersonBits';
 import { gapsFor, relativesOf, type Gap } from '../model/perspective';
 import MediaItem from '../components/MediaItem';
 import StandingCard, { StandingPill } from '../components/StandingCard';
+import Constellation from '../components/Constellation';
 import { needsConfirmation } from '../model/standing';
 
 // What a relative sees. The token comes from their personal link; the code from the admin by
@@ -62,6 +63,8 @@ export default function InviteView() {
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [showRequest, setShowRequest] = useState(false);
   const [requested, setRequested] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggested, setSuggested] = useState(false);
   const [centerOnMe, setCenterOnMe] = useState(true);
   const deviceId = useMemo(() => getDeviceId(), []);
 
@@ -164,8 +167,13 @@ export default function InviteView() {
     return <main className="page invite" style={{ maxWidth: 560 }}><RequestAccess reason="You are viewing a link that was shared with someone else, so this device can look but not add." owner={owner} onSubmit={async (r) => { await api.requestAccess(token, deviceId, r); setRequested(true); setShowRequest(false); }} /></main>;
   }
 
+  if (suggesting) {
+    return <main className="page invite" style={{ maxWidth: 560 }}><RequestAccess reason={`Who should ${owner} invite? They will get their own link and code; you do not need to send anything yourself.`} owner={owner} suggest onCancel={() => setSuggesting(false)} onSubmit={async (r) => { await api.requestAccess(token, deviceId, { ...r, message: `Suggested by ${inv.recipientName}${r.message ? `: ${r.message}` : ''}` }); setSuggesting(false); setSuggested(true); }} /></main>;
+  }
+
   return (
     <main className="page invite">
+      {suggested && <div className="banner" style={{ borderColor: 'var(--ok)' }}>Thank you. {owner} will send them a link.</div>}
       {requested && <div className="banner" style={{ borderColor: 'var(--ok)' }}>Your request for contributor access is with {owner}.</div>}
       {mode === 'view' && !requested && (
         <div className="banner warn row" style={{ justifyContent: 'space-between' }}>
@@ -173,10 +181,11 @@ export default function InviteView() {
           <button className="btn primary small" onClick={() => setShowRequest(true)}>Request access to contribute</button>
         </div>
       )}
-      <section className="hero" style={{ paddingTop: 16 }}>
+      <section className="band invite">
         <h1>{mode === 'full' ? `Welcome, ${inv.recipientName.split(' ')[0]}.` : 'The family, so far.'}</h1>
         <p className="lede">{me ? (isMe ? `This is your family as we know it so far, seen from where you stand: your parents and grandparents, your children, your brothers and sisters. ` : `This is ${whose} family as we know it so far, seen from where ${me.givenNames.split(' ')[0]} stands. `) : 'Here is what we know so far about the family. '}{can.contribute ? `Anything you remember, however small, helps. Nothing you add changes the record until ${owner} reviews it, so there is no way to break anything.` : mode === 'full' ? `You have been given a look-only link; if you would like to add memories, ask ${owner} for a contributor link.` : ''}</p>
         <div className="row"><span className="pill">{mode === 'full' ? inv.role : 'view only'}</span>{me && <span className="pill">centered on {isMe ? 'you' : me.givenNames.split(' ')[0]}</span>}</div>
+        <Constellation ds={scoped} className="constellation" />
       </section>
       <nav className="tabs">
         <button className={tab === 'people' ? 'active' : ''} onClick={() => { setTab('people'); setPersonId(null); }}>{me ? (isMe ? 'Your people' : `${whose} people`) : 'People'}</button>
@@ -239,6 +248,7 @@ export default function InviteView() {
               <div className="stack">{scoped.people.filter((p) => p.generation === g).map((p) => <button key={p.id} className="btn" style={{ textAlign: 'left' }} onClick={() => setPersonId(p.id)}><PersonChip ds={scoped} p={p} to={false} /></button>)}</div>
             </div>
           ))}
+          {can.contribute && <div className="card"><h3>Know someone who should be on this?</h3><p className="muted">A brother or sister, a cousin, an aunt. Tell {owner} who they are and they will get their own link, with the tree centered on them.</p><button className="btn" onClick={() => setSuggesting(true)}>Suggest someone to invite</button></div>}
           {can.contribute && <div className="card"><h3>Something that fits nowhere above?</h3><p className="muted">A note about the whole family, a lead, a photo you have, or a story you would rather tell in your own order.</p><button className="btn primary" onClick={() => setPersonId('__branch')}>Add a general note</button></div>}
         </div>
       )}
@@ -249,7 +259,7 @@ export default function InviteView() {
   );
 }
 
-function RequestAccess({ reason, owner, onSubmit }: { reason: string; owner: string; onSubmit: (r: Omit<AccessRequestInput, 'deviceHash' | 'viaInvitationId'>) => Promise<void> }) {
+function RequestAccess({ reason, owner, onSubmit, suggest, onCancel }: { reason: string; owner: string; onSubmit: (r: Omit<AccessRequestInput, 'deviceHash' | 'viaInvitationId'>) => Promise<void>; suggest?: boolean; onCancel?: () => void }) {
   const [name, setName] = useState('');
   const [relationship, setRelationship] = useState('');
   const [email, setEmail] = useState('');
@@ -262,16 +272,19 @@ function RequestAccess({ reason, owner, onSubmit }: { reason: string; owner: str
   }
   return (
     <div className="card" style={{ marginTop: 40 }}>
-      <h1>Request your own access</h1>
-      <p className="muted">{reason} Each family member gets a personal link and code. Tell {owner} who you are to get yours.</p>
+      <h1>{suggest ? 'Suggest someone to invite' : 'Request your own access'}</h1>
+      <p className="muted">{reason}{suggest ? '' : ` Each family member gets a personal link and code. Tell ${owner} who you are to get yours.`}</p>
       <div className="form-grid">
-        <label className="field">Your name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="field">How you are related<input value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder={`${owner}'s aunt, Mom's brother`} /></label>
-        <label className="field">Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-        <label className="field">Phone<input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
+        <label className="field">{suggest ? 'Their name' : 'Your name'}<input value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="field">{suggest ? 'How they are related to you' : 'How you are related'}<input value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder={suggest ? 'my sister, my cousin' : `${owner}'s aunt, Mom's brother`} /></label>
+        <label className="field">{suggest ? 'Their email (if you know it)' : 'Email'}<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+        <label className="field">{suggest ? 'Their phone (if you know it)' : 'Phone'}<input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
       </div>
       <label className="field" style={{ marginTop: 10 }}>Anything to add (optional)<textarea value={message} onChange={(e) => setMessage(e.target.value)} /></label>
-      <button className="btn primary" style={{ marginTop: 10 }} onClick={send} disabled={busy || !name.trim() || !relationship.trim() || !(email.trim() || phone.trim())}>Send request</button>
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="btn primary" onClick={send} disabled={busy || !name.trim() || !relationship.trim() || !(email.trim() || phone.trim())}>{suggest ? 'Send suggestion' : 'Send request'}</button>
+        {onCancel && <button className="btn" onClick={onCancel}>Cancel</button>}
+      </div>
     </div>
   );
 }
