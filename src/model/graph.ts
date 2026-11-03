@@ -151,7 +151,9 @@ export function howRelated(ds: Dataset, aId: string, bId: string, viaPartner = t
     } else if (x === 1 && y === 1) {
       // "Half" only when both have two recorded parents and share just one. A parent nobody has
       // written down yet is not evidence of a different parent.
-      const recordedParents = (id: string) => parentsOf(ds, id).filter((p) => !p.placeholder).length;
+      // A slot ("Cary's mother, name needed") is a recorded parent: it stands for a distinct person.
+      // Relatives never see slots, so the redacted copy carries the count instead (parentSlots).
+      const recordedParents = (id: string) => parentsOf(ds, id).length + (personById(ds, id)?.parentSlots ?? 0);
       const half = commons.length < 2 && recordedParents(aId) >= 2 && recordedParents(bId) >= 2;
       label = `${half ? 'half-' : ''}${femaleA ? 'sister' : a.sex === 'M' ? 'brother' : 'sibling'}`;
     } else if (x === 1) {

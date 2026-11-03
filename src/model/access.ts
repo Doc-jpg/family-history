@@ -60,7 +60,7 @@ export function redact(ds: Dataset, scope: AccessScope): Dataset {
   };
   return {
     ...ds,
-    people: people.map((p) => ({ ...p, notes: undefined, openQuestions: undefined, recorded: recordedFor(p) })),
+    people: people.map((p) => ({ ...p, notes: undefined, openQuestions: undefined, recorded: recordedFor(p), parentSlots: ds.relationships.filter((r) => r.type === 'parent-child' && r.toId === p.id && ds.people.find((x) => x.id === r.fromId)?.placeholder).length || undefined })),
     relationships: ds.relationships.filter((r) => ids.has(r.fromId) && ids.has(r.toId)),
     events,
     places: ds.places.filter((pl) => placeIds.has(pl.id)),

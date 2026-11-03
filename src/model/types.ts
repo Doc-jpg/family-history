@@ -30,6 +30,7 @@ export interface Person {
   placeholder: boolean;
   /** Set only on a redacted copy for a relative: which kinds of fact the full record holds for this person, so the "fill in the blanks" list does not ask for what is already known but withheld. */
   recorded?: ('parents' | 'birth' | 'death' | 'residence' | 'occupation' | 'photo' | 'bio' | 'maidenName')[]; // true = a slot waiting for a real person; never shown as fact
+  parentSlots?: number; // set by redact(): how many parent slots (placeholders) this person had, since the slots themselves are stripped
   portraitMediaId?: string;
   notes?: string;
   privacy: 'private' | 'family' | 'shareable'; // what may be shown to invited relatives
