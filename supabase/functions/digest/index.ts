@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     ok: true, since, hours, lastChange: data.updated_at,
     recent: { opens: count('open'), submissions: count('submit'), confirmations: count('confirm'), disputes: count('dispute'), requests: count('request') },
     waiting: waitingCounts(doc),
-    invitations: { active: inv.filter((i) => i.status === 'active').length, notOpened: inv.filter((i) => i.status === 'pending').length },
+    invitations: { active: inv.filter((i) => i.status === 'active').length, notOpened: inv.filter((i) => i.status === 'pending' && i.role !== 'viewer').length },
     people: doc.people.filter((p) => !p.placeholder).length,
   });
 });

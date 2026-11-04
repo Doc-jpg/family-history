@@ -26,7 +26,7 @@ export function waitingCounts(ds: Dataset): { inbox: number; requests: number; d
     inbox: ds.contributions.filter((c) => c.status === 'new').length,
     requests: ds.accessRequests.filter((r) => r.status === 'new').length,
     disputes: (ds.attestations ?? []).filter((a) => a.stance === 'dispute' && !a.resolvedAt).length,
-    unopened: ds.invitations.filter((i) => i.status === 'pending').length,
+    unopened: ds.invitations.filter((i) => i.status === 'pending' && i.role !== 'viewer').length, // a look-only link never "opens"; it has no device to bind
   };
 }
 

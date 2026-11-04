@@ -26,7 +26,8 @@ function waitingCounts(ds) {
     inbox: ds.contributions.filter((c) => c.status === "new").length,
     requests: ds.accessRequests.filter((r) => r.status === "new").length,
     disputes: (ds.attestations ?? []).filter((a) => a.stance === "dispute" && !a.resolvedAt).length,
-    unopened: ds.invitations.filter((i) => i.status === "pending").length
+    unopened: ds.invitations.filter((i) => i.status === "pending" && i.role !== "viewer").length
+    // a look-only link never "opens"; it has no device to bind
   };
 }
 
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
     lastChange: data.updated_at,
     recent: { opens: count("open"), submissions: count("submit"), confirmations: count("confirm"), disputes: count("dispute"), requests: count("request") },
     waiting: waitingCounts(doc),
-    invitations: { active: inv.filter((i) => i.status === "active").length, notOpened: inv.filter((i) => i.status === "pending").length },
+    invitations: { active: inv.filter((i) => i.status === "active").length, notOpened: inv.filter((i) => i.status === "pending" && i.role !== "viewer").length },
     people: doc.people.filter((p) => !p.placeholder).length
   });
 });
