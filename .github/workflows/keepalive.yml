@@ -1,13 +1,24 @@
 name: Keep Supabase awake
+# Supabase pauses free projects after 7 quiet days. This reads the database once a day.
+# The URL and publishable key are public by design (see src/config.ts); repository
+# variables override them if they are ever set. Before 2026-11-11 this job checked for the
+# variables only, they were never set, and every run was skipped.
 on:
   schedule:
-    - cron: '17 9 */3 * *'
+    - cron: '17 14 * * *'
   workflow_dispatch:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    if: ${{ vars.VITE_SUPABASE_URL != '' }}
+    env:
+      URL: ${{ vars.VITE_SUPABASE_URL || 'https://nlejldrqvckidlxnuryd.supabase.co' }}
+      KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_pgnUvrhAbeNzZSQ1TyBpWQ_lPf7ZuHg' }}
     steps:
-      - run: |
-          curl -sS "${{ vars.VITE_SUPABASE_URL }}/rest/v1/keepalive?select=pinged_at" \
-            -H "apikey: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}" | head -c 300
+      - name: Read the keepalive row
+        run: |
+          curl -sS --fail -m 30 "$URL/rest/v1/keepalive?select=pinged_at" -H "apikey: $KEY"
+          echo
+      - name: Call the digest function (counts only, no family data)
+        run: |
+          curl -sS -m 60 -X POST "$URL/functions/v1/digest" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}' | head -c 300
+          echo
